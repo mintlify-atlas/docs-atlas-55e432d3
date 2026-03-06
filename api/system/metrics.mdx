@@ -1,0 +1,349 @@
+---
+title: System Metrics
+api: GET /api/v1/observer/system
+---
+
+Get detailed metrics and status for all system components including queue system, VikingDB, and VLM token usage.
+
+<Note>
+The observer API provides component-level monitoring for production deployments.
+</Note>
+
+## Authentication
+
+Requires API key authentication via `X-API-Key` header.
+
+## Available Metrics
+
+### Queue System
+
+Get status of embedding and semantic processing queues.
+
+<CodeGroup>
+
+```bash Queue Status
+curl -X GET http://localhost:1933/api/v1/observer/queue \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+print(client.observer.queue)
+# Output:
+# [queue] (healthy)
+# Queue       Pending  In Progress  Processed  Errors  Total
+# Embedding   0        0            10         0       10
+# Semantic    0        0            10         0       10
+# TOTAL       0        0            20         0       20
+```
+
+</CodeGroup>
+
+### VikingDB Status
+
+Get VikingDB collection and vector count information.
+
+<CodeGroup>
+
+```bash VikingDB Status
+curl -X GET http://localhost:1933/api/v1/observer/vikingdb \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+print(client.observer.vikingdb)
+# Output:
+# [vikingdb] (healthy)
+# Collection  Index Count  Vector Count  Status
+# context     1            55            OK
+# TOTAL       1            55
+
+# Access specific properties
+print(client.observer.vikingdb.is_healthy)  # True
+print(client.observer.vikingdb.status)      # Status table string
+```
+
+</CodeGroup>
+
+### VLM Token Usage
+
+Get Vision Language Model token usage statistics.
+
+<CodeGroup>
+
+```bash VLM Status
+curl -X GET http://localhost:1933/api/v1/observer/vlm \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+print(client.observer.vlm)
+# Output:
+# [vlm] (healthy)
+# Model                        Provider      Prompt  Completion  Total  Last Updated
+# doubao-1-5-vision-pro-32k    volcengine    1000    500         1500   2024-01-01 12:00:00
+# TOTAL                                      1000    500         1500
+```
+
+</CodeGroup>
+
+### Overall System Status
+
+Get combined status of all components.
+
+<CodeGroup>
+
+```bash System Status
+curl -X GET http://localhost:1933/api/v1/observer/system \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+# Print all component status
+print(client.observer.system)
+
+# Check if system is healthy
+if client.observer.is_healthy():
+    print("System OK")
+else:
+    print("System has issues")
+    print(client.observer.system)
+```
+
+</CodeGroup>
+
+## Response Schemas
+
+### Component Status Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Component status information
+  
+  <Expandable title="Component Object">
+    <ResponseField name="name" type="string">
+      Component name (`queue`, `vikingdb`, or `vlm`)
+    </ResponseField>
+    
+    <ResponseField name="is_healthy" type="boolean">
+      Whether the component is operating normally
+    </ResponseField>
+    
+    <ResponseField name="has_errors" type="boolean">
+      Whether the component has any errors
+    </ResponseField>
+    
+    <ResponseField name="status" type="string">
+      Formatted status table as a string
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### System Status Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Overall system status
+  
+  <Expandable title="System Object">
+    <ResponseField name="is_healthy" type="boolean">
+      Whether all components are healthy
+    </ResponseField>
+    
+    <ResponseField name="components" type="object">
+      Status of each component (queue, vikingdb, vlm)
+    </ResponseField>
+    
+    <ResponseField name="errors" type="array">
+      List of error messages from any component
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Response Examples
+
+<ResponseExample>
+
+```json Queue Response
+{
+  "status": "ok",
+  "result": {
+    "name": "queue",
+    "is_healthy": true,
+    "has_errors": false,
+    "status": "Queue\tPending\tIn Progress\tProcessed\tErrors\tTotal\nEmbedding\t0\t0\t10\t0\t10\nSemantic\t0\t0\t10\t0\t10\nTOTAL\t0\t0\t20\t0\t20"
+  },
+  "time": 0.03
+}
+```
+
+```json VikingDB Response
+{
+  "status": "ok",
+  "result": {
+    "name": "vikingdb",
+    "is_healthy": true,
+    "has_errors": false,
+    "status": "Collection\tIndex Count\tVector Count\tStatus\ncontext\t1\t55\tOK\nTOTAL\t1\t55"
+  },
+  "time": 0.05
+}
+```
+
+```json VLM Response
+{
+  "status": "ok",
+  "result": {
+    "name": "vlm",
+    "is_healthy": true,
+    "has_errors": false,
+    "status": "Model\tProvider\tPrompt\tCompletion\tTotal\tLast Updated\ndoubao-1-5-vision-pro-32k\tvolcengine\t1000\t500\t1500\t2024-01-01 12:00:00\nTOTAL\t\t1000\t500\t1500"
+  },
+  "time": 0.04
+}
+```
+
+```json System Response
+{
+  "status": "ok",
+  "result": {
+    "is_healthy": true,
+    "errors": [],
+    "components": {
+      "queue": {
+        "name": "queue",
+        "is_healthy": true,
+        "has_errors": false,
+        "status": "..."
+      },
+      "vikingdb": {
+        "name": "vikingdb",
+        "is_healthy": true,
+        "has_errors": false,
+        "status": "..."
+      },
+      "vlm": {
+        "name": "vlm",
+        "is_healthy": true,
+        "has_errors": false,
+        "status": "..."
+      }
+    }
+  },
+  "time": 0.08
+}
+```
+
+</ResponseExample>
+
+## Wait for Processing
+
+Wait for all asynchronous processing (embedding, semantic generation) to complete.
+
+```bash
+curl -X POST http://localhost:1933/api/v1/system/wait \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{"timeout": 60.0}'
+```
+
+```python
+# Add resources
+client.add_resource("./docs/")
+
+# Wait for all processing to complete
+status = client.wait_processed(timeout=60.0)
+print(f"Pending: {status['pending']}")
+print(f"Processed: {status['processed']}")
+print(f"Errors: {status['errors']}")
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "result": {
+    "pending": 0,
+    "in_progress": 0,
+    "processed": 20,
+    "errors": 0
+  },
+  "time": 0.1
+}
+```
+
+## Health Check
+
+Quick boolean health check:
+
+```bash
+curl -X GET http://localhost:1933/api/v1/debug/health \
+  -H "X-API-Key: your-key"
+```
+
+```python
+if client.observer.is_healthy():
+    print("System OK")
+else:
+    print(client.observer.system)
+```
+
+Response:
+```json
+{
+  "status": "ok",
+  "result": {
+    "healthy": true
+  },
+  "time": 0.02
+}
+```
+
+## Monitoring Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Readiness Probes in Kubernetes">
+    Configure the `/ready` endpoint (no auth required) as your readiness probe:
+    
+    ```yaml
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 1933
+      initialDelaySeconds: 10
+      periodSeconds: 5
+    ```
+  </Accordion>
+  
+  <Accordion title="Monitor Queue Depths">
+    If `pending` or `in_progress` counts remain high:
+    - Check embedding service health
+    - Verify VikingDB connectivity
+    - Consider scaling workers
+  </Accordion>
+  
+  <Accordion title="Track VLM Token Usage">
+    Monitor token consumption to:
+    - Predict costs
+    - Identify usage spikes
+    - Detect potential abuse
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+- [System Status](/api/system/status) - Basic status check
+- [Wait for Processing](/api/system/wait) - Ensure async operations complete

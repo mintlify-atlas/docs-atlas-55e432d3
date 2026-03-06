@@ -1,0 +1,353 @@
+---
+title: Claude Desktop Integration
+description: Memory plugin for Claude Desktop that persists conversations using OpenViking sessions
+icon: message-square
+---
+
+Add persistent memory to Claude Desktop using OpenViking's session-based memory extraction. The plugin automatically captures conversation context and makes it available in future sessions.
+
+## How It Works
+
+The plugin uses OpenViking's **session memory system**:
+
+1. **Session Start**: Creates a new OpenViking session when Claude starts
+2. **During Conversation**: Accumulates user and assistant messages
+3. **Stop Hook**: Summarizes each conversation turn and appends to session
+4. **Session End**: Commits the session to extract long-term memories
+5. **Memory Recall**: Provides a skill to search memories from `viking://user/memories` and `viking://agent/memories`
+
+## Architecture
+
+### Mode Detection
+
+The plugin auto-detects the backend mode:
+
+- **HTTP mode** (preferred): Connects to existing OpenViking server
+  - Reads `server.host` and `server.port` from `./ov.conf`
+  - Health checks `/health` endpoint
+- **Local mode** (fallback): Starts embedded OpenViking if HTTP unreachable
+
+### State Persistence
+
+Plugin state is stored in `./.openviking/memory/session_state.json`:
+
+```json
+{
+  "session_id": "abc123",
+  "mode": "http",
+  "base_url": "http://127.0.0.1:1933",
+  "ingested_turns": 5,
+  "created_at": "2024-03-15T10:30:00Z"
+}
+```
+
+## Installation
+
+<Steps>
+
+<Step title="Install OpenViking">
+```bash
+pip install openviking --upgrade --force-reinstall
+```
+</Step>
+
+<Step title="Create Configuration">
+In your Claude project root, create `ov.conf`:
+
+```json
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933
+  },
+  "storage": {
+    "workspace": "/path/to/workspace"
+  },
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "doubao-embedding-vision-250615",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "dimension": 1024
+    }
+  },
+  "vlm": {
+    "provider": "volcengine",
+    "api_key": "your-api-key",
+    "model": "doubao-seed-2-0-pro-260215",
+    "api_base": "https://ark.cn-beijing.volces.com/api/v3"
+  }
+}
+```
+</Step>
+
+<Step title="Copy Plugin Files">
+```bash
+cd /path/to/your/claude/project
+
+# Copy plugin structure
+cp -r /path/to/OpenViking/examples/claude-memory-plugin/.claude-plugin .
+cp -r /path/to/OpenViking/examples/claude-memory-plugin/hooks .
+cp -r /path/to/OpenViking/examples/claude-memory-plugin/scripts .
+cp -r /path/to/OpenViking/examples/claude-memory-plugin/skills .
+```
+</Step>
+
+<Step title="Start OpenViking Server (Optional)">
+If using HTTP mode:
+
+```bash
+openviking-server --config ./ov.conf > /tmp/openviking.log 2>&1 &
+```
+
+The plugin will auto-start if the server isn't running, but starting it manually is recommended for production.
+</Step>
+
+</Steps>
+
+## Plugin Structure
+
+```
+your-claude-project/
+├── .claude-plugin/
+│   └── plugin.json          # Plugin manifest
+├── hooks/
+│   ├── hooks.json           # Hook configuration
+│   ├── common.sh            # Shared utilities
+│   ├── session-start.sh     # Create OpenViking session
+│   ├── user-prompt-submit.sh # Add memory hint
+│   ├── stop.sh              # Summarize and ingest turn
+│   └── session-end.sh       # Commit session
+├── scripts/
+│   ├── ov_memory.py         # Python bridge for memory ops
+│   └── run_e2e_claude_session.sh # E2E test script
+├── skills/
+│   └── memory-recall/
+│       └── SKILL.md         # Memory search skill
+└── ov.conf                  # OpenViking config
+```
+
+## Hook Behavior
+
+### SessionStart
+
+```bash
+# Creates new OpenViking session
+python3 scripts/ov_memory.py create-session
+
+# Saves to .openviking/memory/session_state.json
+```
+
+Validates `./ov.conf` and auto-detects backend mode (HTTP or local).
+
+### UserPromptSubmit
+
+Adds a lightweight hint that memory is available:
+
+```
+<memory-available>
+Use the "memory-recall" skill to search past conversations if needed.
+</memory-available>
+```
+
+### Stop (Async)
+
+After each turn:
+
+1. Parses the transcript for the last user and assistant messages
+2. Summarizes the turn (uses `claude -p --model haiku` if available, otherwise local summary)
+3. Appends both messages to the OpenViking session
+4. Deduplicates by turn UUID
+
+```bash
+python3 scripts/ov_memory.py ingest-turn \
+  --session-id "abc123" \
+  --user-text "What's the weather?" \
+  --assistant-text "It's sunny today."
+```
+
+### SessionEnd
+
+Commits the session to extract long-term memories:
+
+```bash
+python3 scripts/ov_memory.py commit-session --session-id "abc123"
+```
+
+Extracted memories are stored in:
+- `viking://user/memories/` - User facts, preferences
+- `viking://agent/memories/` - Task execution patterns, learnings
+
+## Memory Recall Skill
+
+The `memory-recall` skill searches both user and agent memories:
+
+```bash
+python3 scripts/ov_memory.py recall --query "weather preferences" --top-k 5
+```
+
+**Example usage in Claude:**
+
+```
+You: Do you remember what I said about the weather?
+Claude: [Uses memory-recall skill]
+        Yes, you mentioned you prefer sunny days.
+```
+
+The skill returns:
+```markdown
+Found 2 relevant memories:
+
+1. [preferences] User prefers sunny weather (score: 0.92)
+   viking://user/memories/preferences/weather.md
+   
+2. [events] Discussed weather on 2024-03-14 (score: 0.78)
+   viking://user/memories/events/2024-03-14-weather.md
+```
+
+## Testing
+
+### E2E Test Script
+
+Run a complete end-to-end test:
+
+```bash
+bash /path/to/OpenViking/examples/claude-memory-plugin/scripts/run_e2e_claude_session.sh
+```
+
+The script:
+1. Creates Python 3.11 virtual environment
+2. Generates temporary `./ov.conf` from source config
+3. Starts OpenViking HTTP server
+4. Runs real `claude -p` session with plugin
+5. Triggers Stop + SessionEnd
+6. Verifies `session_state.json` and session archive
+
+**Custom test:**
+
+```bash
+bash run_e2e_claude_session.sh \
+  /path/to/your/ov.conf \
+  "Custom test prompt"
+```
+
+## Configuration Options
+
+### Plugin Manifest (`.claude-plugin/plugin.json`)
+
+```json
+{
+  "id": "openviking-memory",
+  "name": "OpenViking Memory",
+  "version": "1.0.0",
+  "description": "Session-based memory using OpenViking",
+  "hooks": "hooks/hooks.json"
+}
+```
+
+### Hook Config (`hooks/hooks.json`)
+
+```json
+{
+  "session-start": {
+    "script": "hooks/session-start.sh",
+    "async": false
+  },
+  "user-prompt-submit": {
+    "script": "hooks/user-prompt-submit.sh",
+    "async": false
+  },
+  "stop": {
+    "script": "hooks/stop.sh",
+    "async": true
+  },
+  "session-end": {
+    "script": "hooks/session-end.sh",
+    "async": false
+  }
+}
+```
+
+<Note>
+**Async Hooks:** The `stop` hook runs asynchronously to avoid blocking Claude's response. Other hooks are synchronous to ensure proper state management.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Plugin not loading">
+Verify the plugin manifest:
+
+```bash
+cat .claude-plugin/plugin.json
+```
+
+Ensure hooks directory exists:
+```bash
+ls -la hooks/
+```
+</Accordion>
+
+<Accordion title="ov.conf missing">
+The plugin requires `./ov.conf` in the project root. If missing:
+
+```bash
+cp /path/to/OpenViking/examples/claude-memory-plugin/ov.conf.example ./ov.conf
+# Edit with your API keys
+```
+</Accordion>
+
+<Accordion title="Server connection failed">
+Check server status:
+
+```bash
+curl http://127.0.0.1:1933/health
+```
+
+If not running:
+```bash
+openviking-server --config ./ov.conf > /tmp/openviking.log 2>&1 &
+```
+</Accordion>
+
+<Accordion title="No memories extracted">
+Check the session was committed:
+
+```bash
+python3 scripts/ov_memory.py list-sessions
+```
+
+Manually commit if needed:
+```bash
+python3 scripts/ov_memory.py commit-session --session-id "your-session-id"
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Memory Categories
+
+OpenViking automatically categorizes extracted memories:
+
+| Category | Storage Path | Examples |
+|----------|--------------|----------|
+| **Preferences** | `viking://user/memories/preferences/` | Favorite colors, coding style, timezone |
+| **Events** | `viking://user/memories/events/` | Meeting notes, decisions, milestones |
+| **Facts** | `viking://user/memories/facts/` | User's name, location, role |
+| **Skills** | `viking://agent/memories/skills/` | How to accomplish tasks |
+| **Cases** | `viking://agent/memories/cases/` | Task execution examples |
+
+## Limitations
+
+- Requires `./ov.conf` in project root (strict mode)
+- Plugin state is per-project (in `./.openviking/memory/`)
+- Does **not** modify OpenViking core — uses standard API
+- Summarization uses `claude -p --model haiku` when available; falls back to simple extraction
+
+## See Also
+
+- [Session Management](/core-concepts/sessions)
+- [Memory Extraction](/guides/memory-extraction)
+- [Configuration Reference](/core-concepts/configuration)

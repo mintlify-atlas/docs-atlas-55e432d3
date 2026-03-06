@@ -1,0 +1,491 @@
+---
+title: Authentication
+description: Multi-tenant API key authentication with role-based access control
+---
+
+OpenViking Server supports multi-tenant API key authentication with role-based access control for secure production deployments.
+
+## Overview
+
+OpenViking uses a two-layer API key system:
+
+| Key Type | Created By | Role | Purpose |
+|----------|-----------|------|------|
+| **Root Key** | Server config (`root_api_key`) | ROOT | Full access + admin operations |
+| **User Key** | Admin API | ADMIN or USER | Per-account access |
+
+<Info>
+All API keys are plain random tokens with no embedded identity. The server resolves identity by first comparing against the root key, then looking up the user key index.
+</Info>
+
+## Server Setup
+
+<Steps>
+  <Step title="Configure Root Key">
+    Add the `root_api_key` to `ov.conf`:
+    
+    ```json
+    {
+      "server": {
+        "host": "0.0.0.0",
+        "port": 1933,
+        "root_api_key": "your-secret-root-key",
+        "cors_origins": ["*"]
+      }
+    }
+    ```
+    
+    <Tip>
+    Generate a secure key with: `openssl rand -base64 32`
+    </Tip>
+  </Step>
+  
+  <Step title="Start Server">
+    ```bash
+    openviking-server
+    ```
+  </Step>
+  
+  <Step title="Verify">
+    ```bash
+    curl http://localhost:1933/health
+    # {"status": "ok"}
+    ```
+  </Step>
+</Steps>
+
+## Managing Accounts and Users
+
+Use the root key to create accounts (workspaces) and users via the Admin API.
+
+### Create Account
+
+<CodeGroup>
+```bash curl
+curl -X POST http://localhost:1933/api/v1/admin/accounts \
+  -H "X-API-Key: your-secret-root-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_id": "acme",
+    "admin_user_id": "alice"
+  }'
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "http://localhost:1933/api/v1/admin/accounts",
+    headers={"X-API-Key": "your-secret-root-key"},
+    json={
+        "account_id": "acme",
+        "admin_user_id": "alice"
+    }
+)
+
+result = response.json()["result"]
+print(f"Admin key: {result['user_key']}")
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "admin_user_id": "alice",
+    "user_key": "uk_abc123..."
+  }
+}
+```
+
+<Info>
+The first user in an account is automatically assigned the ADMIN role.
+</Info>
+
+### Register Regular User
+
+<CodeGroup>
+```bash curl
+curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "X-API-Key: your-secret-root-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "bob",
+    "role": "user"
+  }'
+```
+
+```python Python
+response = requests.post(
+    "http://localhost:1933/api/v1/admin/accounts/acme/users",
+    headers={"X-API-Key": "your-secret-root-key"},
+    json={"user_id": "bob", "role": "user"}
+)
+
+result = response.json()["result"]
+print(f"User key: {result['user_key']}")
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "user_id": "bob",
+    "role": "user",
+    "user_key": "uk_xyz789..."
+  }
+}
+```
+
+## Using API Keys
+
+### HTTP Headers
+
+OpenViking accepts API keys via two headers:
+
+<CodeGroup>
+```bash X-API-Key Header
+curl http://localhost:1933/api/v1/fs/ls?uri=viking:// \
+  -H "X-API-Key: uk_abc123..."
+```
+
+```bash Authorization Bearer
+curl http://localhost:1933/api/v1/fs/ls?uri=viking:// \
+  -H "Authorization: Bearer uk_abc123..."
+```
+</CodeGroup>
+
+### Python SDK
+
+<CodeGroup>
+```python Sync Client
+import openviking as ov
+
+client = ov.SyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="uk_abc123...",
+    agent_id="my-agent"
+)
+
+client.initialize()
+results = client.find("search query")
+```
+
+```python Async Client
+import openviking as ov
+
+client = ov.AsyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="uk_abc123...",
+    agent_id="my-agent"
+)
+
+await client.initialize()
+results = await client.find("search query")
+```
+</CodeGroup>
+
+### CLI
+
+Create `~/.openviking/ovcli.conf`:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "uk_abc123...",
+  "agent_id": "my-agent"
+}
+```
+
+Then use the CLI:
+```bash
+ov ls viking://resources/
+ov find "what is openviking"
+```
+
+## Roles and Permissions
+
+| Role | Scope | Capabilities |
+|------|-------|-------------|
+| **ROOT** | Global | All operations + Admin API (create/delete accounts, manage users) |
+| **ADMIN** | Own account | Regular operations + manage users in own account |
+| **USER** | Own account | Regular operations (ls, read, find, sessions, etc.) |
+
+<Accordion title="ROOT Role">
+**Full system access:**
+- Create and delete accounts
+- Manage users across all accounts
+- Change user roles
+- All regular operations
+- Access admin endpoints
+
+**Use case:** System administrators
+</Accordion>
+
+<Accordion title="ADMIN Role">
+**Account-level management:**
+- Register users in own account
+- Remove users from own account
+- Regenerate user keys
+- All regular operations within account
+
+**Use case:** Team leads, project managers
+</Accordion>
+
+<Accordion title="USER Role">
+**Standard operations:**
+- Add and manage resources
+- Create and manage sessions
+- Search and retrieve context
+- File system operations (ls, read, tree, etc.)
+
+**Use case:** Regular users, agents
+</Accordion>
+
+## Admin API Reference
+
+### Account Management
+
+<AccordionGroup>
+<Accordion title="Create Account" icon="plus">
+**POST** `/api/v1/admin/accounts`
+
+**Role:** ROOT
+
+**Request:**
+```json
+{
+  "account_id": "acme",
+  "admin_user_id": "alice"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "admin_user_id": "alice",
+    "user_key": "uk_..."
+  }
+}
+```
+</Accordion>
+
+<Accordion title="List Accounts" icon="list">
+**GET** `/api/v1/admin/accounts`
+
+**Role:** ROOT
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": [
+    {"account_id": "acme", "created_at": "2026-01-15T10:00:00Z"},
+    {"account_id": "widget-co", "created_at": "2026-01-16T14:30:00Z"}
+  ]
+}
+```
+</Accordion>
+
+<Accordion title="Delete Account" icon="trash">
+**DELETE** `/api/v1/admin/accounts/{account_id}`
+
+**Role:** ROOT
+
+**Example:**
+```bash
+curl -X DELETE http://localhost:1933/api/v1/admin/accounts/acme \
+  -H "X-API-Key: root-key"
+```
+</Accordion>
+</AccordionGroup>
+
+### User Management
+
+<AccordionGroup>
+<Accordion title="Register User" icon="user-plus">
+**POST** `/api/v1/admin/accounts/{account_id}/users`
+
+**Role:** ROOT, ADMIN
+
+**Request:**
+```json
+{
+  "user_id": "bob",
+  "role": "user"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "user_id": "bob",
+    "role": "user",
+    "user_key": "uk_..."
+  }
+}
+```
+</Accordion>
+
+<Accordion title="List Users" icon="users">
+**GET** `/api/v1/admin/accounts/{account_id}/users`
+
+**Role:** ROOT, ADMIN
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": [
+    {"user_id": "alice", "role": "admin"},
+    {"user_id": "bob", "role": "user"}
+  ]
+}
+```
+</Accordion>
+
+<Accordion title="Remove User" icon="user-minus">
+**DELETE** `/api/v1/admin/accounts/{account_id}/users/{user_id}`
+
+**Role:** ROOT, ADMIN
+
+**Example:**
+```bash
+curl -X DELETE http://localhost:1933/api/v1/admin/accounts/acme/users/bob \
+  -H "X-API-Key: admin-key"
+```
+</Accordion>
+
+<Accordion title="Change User Role" icon="user-gear">
+**PUT** `/api/v1/admin/accounts/{account_id}/users/{user_id}/role`
+
+**Role:** ROOT
+
+**Request:**
+```json
+{
+  "role": "admin"
+}
+```
+</Accordion>
+
+<Accordion title="Regenerate Key" icon="key">
+**POST** `/api/v1/admin/accounts/{account_id}/users/{user_id}/key`
+
+**Role:** ROOT, ADMIN
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "user_key": "uk_new_key..."
+  }
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Development Mode
+
+When no `root_api_key` is configured, authentication is disabled.
+
+```json
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933
+  }
+}
+```
+
+<Warning>
+**Security:** Dev mode (no auth) is **only allowed** when binding to localhost (`127.0.0.1`, `localhost`, or `::1`). If `host` is set to `0.0.0.0` without a `root_api_key`, the server will refuse to start.
+</Warning>
+
+## Unauthenticated Endpoints
+
+The `/health` endpoint never requires authentication:
+
+```bash
+curl http://localhost:1933/health
+# {"status": "ok"}
+```
+
+<Info>
+This allows load balancers and monitoring tools to check server health without credentials.
+</Info>
+
+## Best Practices
+
+<Steps>
+  <Step title="Generate Strong Keys">
+    Use cryptographically secure random keys:
+    
+    ```bash
+    openssl rand -base64 32
+    ```
+  </Step>
+  
+  <Step title="Rotate Keys Regularly">
+    Regenerate user keys periodically:
+    
+    ```bash
+    curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users/bob/key \
+      -H "X-API-Key: admin-key"
+    ```
+  </Step>
+  
+  <Step title="Use Separate Keys per Agent">
+    Create different user keys for each agent/service:
+    
+    ```bash
+    # Agent A
+    curl -X POST .../users -d '{"user_id": "agent-a", "role": "user"}'
+    
+    # Agent B
+    curl -X POST .../users -d '{"user_id": "agent-b", "role": "user"}'
+    ```
+  </Step>
+  
+  <Step title="Store Keys Securely">
+    Use environment variables or secret managers:
+    
+    ```python
+    import os
+    
+    client = ov.SyncHTTPClient(
+        url=os.environ["OPENVIKING_URL"],
+        api_key=os.environ["OPENVIKING_API_KEY"]
+    )
+    ```
+  </Step>
+</Steps>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Server configuration reference
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Production deployment guide
+  </Card>
+  <Card title="Python SDK" icon="python" href="/guides/python-sdk">
+    Client authentication setup
+  </Card>
+  <Card title="CLI Usage" icon="terminal" href="/guides/cli-usage">
+    CLI authentication setup
+  </Card>
+</CardGroup>

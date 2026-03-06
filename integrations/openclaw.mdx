@@ -1,0 +1,311 @@
+---
+title: OpenClaw Integration
+description: Use OpenViking as long-term memory for OpenClaw AI agent framework
+icon: robot
+---
+
+Integrate OpenViking as the long-term memory backend for [OpenClaw](https://github.com/openclaw/openclaw). The plugin enables automatic memory capture from conversations and intelligent recall when relevant.
+
+## Performance Benchmarks
+
+Tested on LoCoMo10 dataset (1,540 long-range dialogue cases):
+
+| Configuration | Task Completion | Input Tokens |
+|--------------|----------------|---------------|
+| OpenClaw (baseline) | 35.65% | 24.6M |
+| OpenClaw + LanceDB | 44.55% | 51.6M |
+| **OpenClaw + OpenViking** | **52.08%** | **4.3M** |
+
+<Note>
+**Result:** 49% improvement over baseline with 83% token reduction compared to native memory.
+</Note>
+
+## Prerequisites
+
+- **Python** 3.10+
+- **Node.js** 22+
+- **cmake** and **g++** (for compiling C++ extensions)
+- **OpenClaw** installed globally: `npm install -g openclaw`
+- **OpenViking** installed: `pip install openviking --upgrade --force-reinstall`
+
+## Quick Start
+
+### One-Click Install (Linux/macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/volcengine/OpenViking/main/examples/openclaw-memory-plugin/install.sh | bash
+```
+
+The script validates your environment, installs dependencies, and configures the plugin automatically.
+
+### Manual Setup
+
+<Steps>
+
+<Step title="Install OpenClaw">
+```bash
+npm install -g openclaw
+openclaw onboard  # Configure your LLM
+```
+</Step>
+
+<Step title="Install OpenViking">
+```bash
+pip install openviking --upgrade --force-reinstall
+```
+</Step>
+
+<Step title="Run Setup Helper">
+From the OpenViking repository:
+
+```bash
+git clone https://github.com/volcengine/OpenViking.git
+cd OpenViking
+npx ./examples/openclaw-memory-plugin/setup-helper
+```
+
+The helper will:
+- Create `~/.openviking/ov.conf` with your API keys
+- Deploy the plugin to `~/.openclaw/extensions/memory-openviking`
+- Configure OpenClaw to use the plugin
+- Generate environment file `~/.openclaw/openviking.env`
+</Step>
+
+<Step title="Start OpenClaw">
+Linux/macOS:
+```bash
+source ~/.openclaw/openviking.env && openclaw gateway
+```
+
+Windows (cmd):
+```cmd
+call "%USERPROFILE%\.openclaw\openviking.env.bat" && openclaw gateway
+```
+</Step>
+
+</Steps>
+
+## Configuration
+
+### Server Config (`~/.openviking/ov.conf`)
+
+```json
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 1933
+  },
+  "storage": {
+    "workspace": "/home/yourname/.openviking/data"
+  },
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "<your-api-key>",
+      "model": "doubao-embedding-vision-250615",
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "dimension": 1024
+    }
+  },
+  "vlm": {
+    "provider": "volcengine",
+    "api_key": "<your-api-key>",
+    "model": "doubao-seed-2-0-pro-260215",
+    "api_base": "https://ark.cn-beijing.volces.com/api/v3"
+  }
+}
+```
+
+<Note>
+The `workspace` path **must be absolute** (e.g., `/home/yourname/.openviking/data`). Tilde (`~`) is not supported.
+</Note>
+
+### Plugin Configuration
+
+The plugin operates in two modes:
+
+<CodeGroup>
+
+```bash Local Mode (Default)
+# Plugin auto-starts OpenViking server
+openclaw config set plugins.slots.memory memory-openviking
+openclaw config set plugins.entries.memory-openviking.config.mode "local"
+openclaw config set plugins.entries.memory-openviking.config.configPath "~/.openviking/ov.conf"
+```
+
+```bash Remote Mode
+# Connect to existing server
+openclaw config set plugins.entries.memory-openviking.config.mode "remote"
+openclaw config set plugins.entries.memory-openviking.config.baseUrl "http://localhost:1933"
+```
+
+</CodeGroup>
+
+### Memory Behavior
+
+```bash
+# Enable auto-capture (default: true)
+openclaw config set plugins.entries.memory-openviking.config.autoCapture true --json
+
+# Enable auto-recall (default: true)
+openclaw config set plugins.entries.memory-openviking.config.autoRecall true --json
+
+# Set recall limit (default: 6)
+openclaw config set plugins.entries.memory-openviking.config.recallLimit 10
+
+# Set score threshold (default: 0.01)
+openclaw config set plugins.entries.memory-openviking.config.recallScoreThreshold 0.2
+```
+
+## Usage
+
+Once configured, memory works automatically:
+
+### Storing Memories
+
+```bash
+openclaw tui
+```
+
+Then in chat:
+```
+You: Please remember: my favorite programming language is Python.
+Agent: I'll remember that.
+```
+
+Memories are automatically extracted from conversations when:
+- User provides factual information
+- Preferences or settings are mentioned
+- Important decisions are discussed
+
+### Recalling Memories
+
+In a later session:
+```
+You: What is my favorite programming language?
+Agent: Based on our previous conversation, your favorite programming language is Python.
+```
+
+The plugin automatically injects relevant memories into the context before the agent responds.
+
+### Manual Tools
+
+OpenClaw also provides explicit memory tools:
+
+```typescript
+// Search memories
+memory_recall({ query: "programming preferences", limit: 5 })
+
+// Store information
+memory_store({ text: "User prefers dark mode for all applications" })
+
+// Forget specific memory
+memory_forget({ query: "programming language preference" })
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Plugin not showing in gateway output">
+Verify the environment file is loaded:
+
+```bash
+openclaw status  # Check if plugin is enabled
+
+# Re-run setup helper
+npx ./examples/openclaw-memory-plugin/setup-helper
+```
+</Accordion>
+
+<Accordion title="Health check timeout">
+A stale process may be occupying the port:
+
+```bash
+# Linux/macOS
+lsof -ti tcp:1933 tcp:1833 | xargs kill -9
+source ~/.openclaw/openviking.env && openclaw gateway
+
+# Windows
+for /f "tokens=5" %a in ('netstat -ano ^| findstr ":1933 :1833"') do taskkill /PID %a /F
+```
+</Accordion>
+
+<Accordion title="Extracted 0 memories">
+Check your model configuration in `ov.conf`:
+
+- Verify `embedding.dense.api_key` is a valid API key
+- Verify `vlm.api_key` is set
+- Verify `vlm.model` is a model name (not an API key)
+
+Test manually:
+```bash
+python3 -c "import openviking; print('ok')"
+```
+</Accordion>
+
+<Accordion title="Memory shows 'disabled' or 'memory-core'">
+The plugin slot is not set correctly:
+
+```bash
+openclaw config set plugins.slots.memory memory-openviking
+openclaw config set plugins.enabled true --json
+```
+
+Restart the gateway after changing slots.
+</Accordion>
+
+</AccordionGroup>
+
+## Daily Usage
+
+Create a convenient alias (Linux/macOS):
+
+```bash .bashrc
+alias openclaw-start='source ~/.openclaw/openviking.env && openclaw gateway'
+```
+
+Then simply run:
+```bash
+openclaw-start
+```
+
+## Advanced Options
+
+### Capture Mode
+
+Control what gets captured:
+
+```bash
+# Semantic mode (default) - captures all eligible text
+openclaw config set plugins.entries.memory-openviking.config.captureMode "semantic"
+
+# Keyword mode - only triggers on memory-related keywords
+openclaw config set plugins.entries.memory-openviking.config.captureMode "keyword"
+```
+
+### Target URI
+
+Specify where memories are stored:
+
+```bash
+openclaw config set plugins.entries.memory-openviking.config.targetUri "viking://user/memories"
+```
+
+### Setup Helper Options
+
+```bash
+# Non-interactive mode
+npx ./examples/openclaw-memory-plugin/setup-helper -y
+
+# Environment variables
+export OPENVIKING_PYTHON=/usr/local/bin/python3
+export OPENVIKING_ARK_API_KEY=your-api-key
+npx ./examples/openclaw-memory-plugin/setup-helper -y
+```
+
+## See Also
+
+- [OpenClaw GitHub](https://github.com/openclaw/openclaw)
+- [Configuration Reference](/core-concepts/configuration)
+- [Memory Management](/core-concepts/memory-management)

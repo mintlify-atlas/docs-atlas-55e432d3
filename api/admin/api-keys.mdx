@@ -1,0 +1,376 @@
+---
+title: Workspace Management
+---
+
+Manage workspaces (accounts) in multi-tenant OpenViking deployments. Workspaces provide isolated environments for teams with separate data, users, and API keys.
+
+<Warning>
+Admin APIs require `root_api_key` to be configured in the server. Only ROOT users can create and delete workspaces.
+</Warning>
+
+## Workspace Architecture
+
+Each workspace has:
+- Isolated AGFS storage (`viking://user/`, `viking://agent/`, etc.)
+- Separate VectorDB namespace
+- Independent user management
+- At least one ADMIN user
+
+## Create Workspace
+
+<api>POST /api/v1/admin/accounts</api>
+
+Create a new workspace with its first admin user. This initializes all required directories and storage.
+
+**Authentication:** ROOT only
+
+### Request Body
+
+<ParamField body="account_id" type="string" required>
+  Unique workspace identifier
+</ParamField>
+
+<ParamField body="admin_user_id" type="string" required>
+  User ID for the first admin of this workspace
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Creation result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="account_id" type="string">
+      Created workspace ID
+    </ResponseField>
+    
+    <ResponseField name="admin_user_id" type="string">
+      Admin user ID
+    </ResponseField>
+    
+    <ResponseField name="user_key" type="string">
+      Generated API key for the admin user (save this - it cannot be retrieved later)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/admin/accounts \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <root-key>" \
+  -d '{
+    "account_id": "acme",
+    "admin_user_id": "alice"
+  }'
+```
+
+```bash CLI
+openviking admin create-account acme --admin alice
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "admin_user_id": "alice",
+    "user_key": "7f3a9c1e5d2b8a4f..."
+  },
+  "time": 0.25
+}
+```
+
+</ResponseExample>
+
+## List Workspaces
+
+<api>GET /api/v1/admin/accounts</api>
+
+List all workspaces with user counts and creation timestamps.
+
+**Authentication:** ROOT only
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  Array of workspaces
+  
+  <Expandable title="Workspace Object">
+    <ResponseField name="account_id" type="string">
+      Workspace identifier
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="string">
+      ISO 8601 timestamp of creation
+    </ResponseField>
+    
+    <ResponseField name="user_count" type="number">
+      Number of users in the workspace
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://localhost:1933/api/v1/admin/accounts \
+  -H "X-API-Key: <root-key>"
+```
+
+```bash CLI
+openviking admin list-accounts
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": [
+    {
+      "account_id": "default",
+      "created_at": "2026-02-12T10:00:00Z",
+      "user_count": 1
+    },
+    {
+      "account_id": "acme",
+      "created_at": "2026-02-13T08:00:00Z",
+      "user_count": 3
+    },
+    {
+      "account_id": "corp",
+      "created_at": "2026-03-01T14:30:00Z",
+      "user_count": 7
+    }
+  ],
+  "time": 0.08
+}
+```
+
+</ResponseExample>
+
+## Delete Workspace
+
+<api>DELETE /api/v1/admin/accounts/{account_id}</api>
+
+Delete a workspace and all associated data including users, API keys, AGFS storage, and VectorDB records.
+
+**Authentication:** ROOT only
+
+<Warning>
+This operation is irreversible. All workspace data will be permanently deleted:
+- All users and their API keys
+- All AGFS data (`viking://user/`, `viking://agent/`, `viking://session/`, `viking://resources/`)
+- All VectorDB embeddings and metadata
+</Warning>
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID to delete
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Deletion result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="deleted" type="boolean">
+      Always `true` on success
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE http://localhost:1933/api/v1/admin/accounts/acme \
+  -H "X-API-Key: <root-key>"
+```
+
+```bash CLI
+openviking admin delete-account acme
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "deleted": true
+  },
+  "time": 0.45
+}
+```
+
+</ResponseExample>
+
+## Cascade Deletion Details
+
+When a workspace is deleted, the following cleanup occurs:
+
+### 1. AGFS Data Cleanup
+
+All directories for the account are removed:
+```
+viking://user/          # User personal data
+viking://agent/         # Skills and agent data
+viking://session/       # Session data
+viking://resources/     # Uploaded resources
+```
+
+### 2. VectorDB Cleanup
+
+All vectors and metadata tagged with the account ID are deleted from:
+- Context collection
+- Any custom collections
+
+### 3. User and Key Cleanup
+
+All users in the workspace and their API keys are removed from the key manager.
+
+## Complete Workflow Example
+
+```bash
+# Step 1: Create workspace
+curl -X POST http://localhost:1933/api/v1/admin/accounts \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <root-key>" \
+  -d '{
+    "account_id": "acme",
+    "admin_user_id": "alice"
+  }'
+# Save alice's user_key from response
+
+# Step 2: Alice adds users (using her admin key)
+curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <alice-key>" \
+  -d '{
+    "user_id": "bob",
+    "role": "user"
+  }'
+
+curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <alice-key>" \
+  -d '{
+    "user_id": "carol",
+    "role": "user"
+  }'
+
+# Step 3: List all workspaces (ROOT)
+curl -X GET http://localhost:1933/api/v1/admin/accounts \
+  -H "X-API-Key: <root-key>"
+
+# Step 4: Check users in acme workspace
+curl -X GET http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "X-API-Key: <alice-key>"
+
+# Step 5: Delete workspace (removes all data)
+curl -X DELETE http://localhost:1933/api/v1/admin/accounts/acme \
+  -H "X-API-Key: <root-key>"
+```
+
+## Configuration
+
+To enable admin APIs, configure the root API key in your server:
+
+```bash
+# Set root API key (environment variable)
+export OPENVIKING_ROOT_API_KEY="your-secure-root-key"
+
+# Or in config file
+root_api_key: "your-secure-root-key"
+
+# Start server
+openviking serve --config config.yaml
+```
+
+<Tip>
+Generate a secure root key:
+```bash
+openssl rand -hex 32
+```
+</Tip>
+
+## Multi-Tenant Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Strong Root Keys">
+    The root API key has full system access. Generate cryptographically secure keys and store them securely (e.g., in a secrets manager).
+    
+    ```bash
+    # Generate secure 256-bit key
+    openssl rand -hex 32
+    ```
+  </Accordion>
+  
+  <Accordion title="Minimize Root Key Usage">
+    - Create workspaces and initial admins with ROOT
+    - Let ADMIN users manage their own workspace users
+    - Only use ROOT for workspace deletion and role changes
+  </Accordion>
+  
+  <Accordion title="Name Workspaces Consistently">
+    Use lowercase identifiers with hyphens:
+    - `acme-corp` ✅
+    - `team-alpha` ✅
+    - `AcmeCorp` ❌
+    - `team_alpha` ❌
+  </Accordion>
+  
+  <Accordion title="Plan for Workspace Lifecycle">
+    - Create workspaces for teams/projects
+    - Archive data before deletion
+    - Remove unused workspaces periodically
+    - Monitor workspace resource usage
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+- [User Management](/api/admin/users) - Manage users within workspaces
+- [System Status](/api/system/status) - Check system health

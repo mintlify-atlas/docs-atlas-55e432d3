@@ -1,0 +1,159 @@
+---
+title: "List Sessions"
+api: "GET /api/v1/sessions"
+description: "Retrieve all sessions for the current user"
+---
+
+List all conversation sessions associated with the authenticated user.
+
+## Request
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  Array of session objects
+  
+  <ResponseField name="session_id" type="string">
+    Session identifier
+  </ResponseField>
+  
+  <ResponseField name="uri" type="string">
+    Full Viking URI for the session
+  </ResponseField>
+  
+  <ResponseField name="is_dir" type="boolean">
+    Whether this is a directory entry
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://localhost:1933/api/v1/sessions \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python SDK
+import openviking as ov
+
+# Initialize client
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# List all sessions
+sessions = client.ls("viking://session/")
+for session in sessions:
+    print(f"Session: {session['name']}")
+
+# Or use the dedicated method
+sessions = client.list_sessions()
+for session in sessions:
+    print(f"ID: {session['session_id']} - URI: {session['uri']}")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.get(
+    "http://localhost:1933/api/v1/sessions",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+result = response.json()
+for session in result['result']:
+    print(f"Session ID: {session['session_id']}")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": [
+    {
+      "session_id": "a1b2c3d4",
+      "uri": "viking://session/alice/a1b2c3d4",
+      "is_dir": true
+    },
+    {
+      "session_id": "e5f6g7h8",
+      "uri": "viking://session/alice/e5f6g7h8",
+      "is_dir": true
+    }
+  ],
+  "time": 0.1
+}
+```
+
+## Use Cases
+
+### List and Resume Sessions
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# List all sessions
+sessions = client.list_sessions()
+
+if sessions:
+    # Resume the most recent session
+    latest_session_id = sessions[0]['session_id']
+    session = client.session(session_id=latest_session_id)
+    session.load()
+    
+    print(f"Resumed session with {len(session.messages)} messages")
+else:
+    # Create new session if none exist
+    session = client.session()
+    print(f"Created new session: {session.session_id}")
+```
+
+### Session Management Dashboard
+
+```python
+import openviking as ov
+from datetime import datetime
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+sessions = client.list_sessions()
+
+print(f"Total sessions: {len(sessions)}\n")
+
+for sess in sessions:
+    session_id = sess['session_id']
+    details = client.get_session(session_id)
+    
+    print(f"Session: {session_id}")
+    print(f"  Messages: {details['message_count']}")
+    print(f"  URI: {sess['uri']}")
+    print()
+```
+
+## Related Endpoints
+
+- [Create Session](/api/sessions/create-session) - Create a new session
+- [Get Session](/api/sessions/get-session) - Get details for a specific session
+- [Delete Session](/api/sessions/delete-session) - Remove a session

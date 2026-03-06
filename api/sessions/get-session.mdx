@@ -1,0 +1,250 @@
+---
+title: "Get Session"
+api: "GET /api/v1/sessions/{session_id}"
+description: "Retrieve details for a specific session"
+---
+
+Get metadata and statistics for an existing conversation session.
+
+## Request
+
+### Path Parameters
+
+<ParamField path="session_id" type="string" required>
+  The session ID to retrieve
+</ParamField>
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Session details
+  
+  <ResponseField name="session_id" type="string">
+    The session identifier
+  </ResponseField>
+  
+  <ResponseField name="user" type="object">
+    User information associated with the session
+    
+    <ResponseField name="user_id" type="string">
+      User identifier
+    </ResponseField>
+    
+    <ResponseField name="agent_id" type="string">
+      Agent identifier
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="message_count" type="number">
+    Number of messages currently in the session
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://localhost:1933/api/v1/sessions/a1b2c3d4 \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python SDK
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Load existing session
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+print(f"Session: {session.session_id}")
+print(f"Messages: {len(session.messages)}")
+print(f"URI: {session.uri}")
+
+# Access session properties
+print(f"Total turns: {session.stats.total_turns}")
+print(f"Contexts used: {session.stats.contexts_used}")
+print(f"Memories extracted: {session.stats.memories_extracted}")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.get(
+    "http://localhost:1933/api/v1/sessions/a1b2c3d4",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+result = response.json()
+print(f"Session ID: {result['result']['session_id']}")
+print(f"Messages: {result['result']['message_count']}")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "session_id": "a1b2c3d4",
+    "user": {
+      "user_id": "alice",
+      "agent_id": "default"
+    },
+    "message_count": 8
+  },
+  "time": 0.1
+}
+```
+
+## Session Properties (Python SDK)
+
+When using the Python SDK, the Session object provides rich properties:
+
+### Basic Properties
+
+```python
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+# Session identification
+print(session.session_id)  # "a1b2c3d4"
+print(session.uri)         # "viking://session/alice/a1b2c3d4/"
+print(session.user)        # UserIdentifier object
+
+# Messages
+print(len(session.messages))  # Current message count
+for msg in session.messages:
+    print(f"{msg.role}: {msg.content}")
+```
+
+### Statistics
+
+```python
+stats = session.stats
+
+print(f"Total turns: {stats.total_turns}")
+print(f"Total tokens: {stats.total_tokens}")
+print(f"Compression count: {stats.compression_count}")
+print(f"Contexts used: {stats.contexts_used}")
+print(f"Skills used: {stats.skills_used}")
+print(f"Memories extracted: {stats.memories_extracted}")
+```
+
+### Compression Info
+
+```python
+compression = session.compression
+
+print(f"Summary: {compression.summary}")
+print(f"Original count: {compression.original_count}")
+print(f"Compressed count: {compression.compressed_count}")
+print(f"Compression index: {compression.compression_index}")
+```
+
+### Usage Records
+
+```python
+# Track what was actually used
+for usage in session.usage_records:
+    print(f"Type: {usage.type}")  # "context" or "skill"
+    print(f"URI: {usage.uri}")
+    print(f"Success: {usage.success}")
+    print(f"Timestamp: {usage.timestamp}")
+```
+
+## Use Cases
+
+### Resume Previous Conversation
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Load existing session
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+if session.messages:
+    print("Previous conversation:")
+    for msg in session.messages[-5:]:  # Last 5 messages
+        print(f"{msg.role}: {msg.content}")
+    
+    # Continue conversation
+    session.add_message("user", [TextPart(text="What did we discuss earlier?")])
+else:
+    print("Session is empty")
+```
+
+### Check Session Health
+
+```python
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+# Check if session needs compression
+if session.stats.total_tokens > 8000:
+    print("Session is getting long, consider committing")
+    result = session.commit()
+    print(f"Archived and extracted {result['memories_extracted']} memories")
+```
+
+### Analyze Session Activity
+
+```python
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+print(f"Session Activity Report")
+print(f"="*50)
+print(f"Total turns: {session.stats.total_turns}")
+print(f"Messages: {len(session.messages)}")
+print(f"Archives: {session.stats.compression_count}")
+print(f"\nContext Usage:")
+print(f"  Contexts referenced: {session.stats.contexts_used}")
+print(f"  Skills called: {session.stats.skills_used}")
+print(f"\nMemory Extraction:")
+print(f"  Memories extracted: {session.stats.memories_extracted}")
+```
+
+## Error Responses
+
+### Session Not Found
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Session a1b2c3d4 not found"
+  }
+}
+```
+
+## Related Endpoints
+
+- [Create Session](/api/sessions/create-session) - Create a new session
+- [List Sessions](/api/sessions/list-sessions) - List all sessions
+- [Add Message](/api/sessions/add-message) - Add messages to session
+- [Commit Session](/api/sessions/commit-session) - Archive and extract memories
+- [Delete Session](/api/sessions/delete-session) - Delete a session

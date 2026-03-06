@@ -1,0 +1,359 @@
+---
+title: "Add Message"
+api: "POST /api/v1/sessions/{session_id}/messages"
+description: "Add a message to a session conversation"
+---
+
+Add user or assistant messages to track conversation flow. Supports both simple text messages and structured messages with multiple parts (text, context references, tool calls).
+
+## Request
+
+### Path Parameters
+
+<ParamField path="session_id" type="string" required>
+  The session ID to add the message to
+</ParamField>
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Must be `application/json`
+</ParamField>
+
+### Body Parameters
+
+<ParamField body="role" type="string" required>
+  Message role: `user` or `assistant`
+</ParamField>
+
+<ParamField body="content" type="string">
+  Simple text content (backward compatible mode). Mutually exclusive with `parts`.
+</ParamField>
+
+<ParamField body="parts" type="array">
+  Array of message parts for structured messages (text, context, tool). If both `content` and `parts` are provided, `parts` takes precedence.
+  
+  <ParamField body="type" type="string" required>
+    Part type: `text`, `context`, or `tool`
+  </ParamField>
+  
+  **For text parts:**
+  <ParamField body="text" type="string" required>
+    Text content
+  </ParamField>
+  
+  **For context parts:**
+  <ParamField body="uri" type="string" required>
+    Viking URI of the context (e.g., `viking://resources/docs/auth/`)
+  </ParamField>
+  
+  <ParamField body="context_type" type="string" default="memory">
+    Type of context: `memory`, `resource`, or `skill`
+  </ParamField>
+  
+  <ParamField body="abstract" type="string">
+    Brief description of the context
+  </ParamField>
+  
+  **For tool parts:**
+  <ParamField body="tool_id" type="string">
+    Unique tool call identifier
+  </ParamField>
+  
+  <ParamField body="tool_name" type="string">
+    Name of the tool being called
+  </ParamField>
+  
+  <ParamField body="skill_uri" type="string">
+    URI of the skill providing the tool
+  </ParamField>
+  
+  <ParamField body="tool_input" type="object">
+    Input parameters for the tool
+  </ParamField>
+  
+  <ParamField body="tool_output" type="string">
+    Tool execution output
+  </ParamField>
+  
+  <ParamField body="tool_status" type="string" default="pending">
+    Execution status: `pending`, `running`, `completed`, or `error`
+  </ParamField>
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Add message result
+  
+  <ResponseField name="session_id" type="string">
+    The session ID
+  </ResponseField>
+  
+  <ResponseField name="message_count" type="number">
+    Total number of messages in the session
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+### Simple Text Message
+
+<CodeGroup>
+
+```bash cURL
+# Add user message
+curl -X POST http://localhost:1933/api/v1/sessions/a1b2c3d4/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "role": "user",
+    "content": "How do I authenticate users?"
+  }'
+```
+
+```python Python SDK
+import openviking as ov
+from openviking.message import TextPart
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Get or create session
+session = client.session(session_id="a1b2c3d4")
+
+# Add user message
+session.add_message("user", [
+    TextPart(text="How do I authenticate users?")
+])
+
+# Add assistant response
+session.add_message("assistant", [
+    TextPart(text="You can use OAuth 2.0 for authentication...")
+])
+
+print(f"Total messages: {len(session.messages)}")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.post(
+    "http://localhost:1933/api/v1/sessions/a1b2c3d4/messages",
+    headers={
+        "Content-Type": "application/json",
+        "X-API-Key": "your-api-key"
+    },
+    json={
+        "role": "user",
+        "content": "How do I authenticate users?"
+    }
+)
+
+result = response.json()
+print(f"Message count: {result['result']['message_count']}")
+```
+
+</CodeGroup>
+
+### Message with Context Reference
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/sessions/a1b2c3d4/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "role": "assistant",
+    "parts": [
+      {
+        "type": "text",
+        "text": "Based on the authentication guide..."
+      },
+      {
+        "type": "context",
+        "uri": "viking://resources/docs/auth/",
+        "context_type": "resource",
+        "abstract": "OAuth 2.0 implementation guide"
+      }
+    ]
+  }'
+```
+
+```python Python SDK
+from openviking.message import TextPart, ContextPart
+
+# Search for relevant context
+results = client.search("authentication guide", session=session)
+
+# Add assistant message with context reference
+session.add_message("assistant", [
+    TextPart(text="Based on the authentication guide..."),
+    ContextPart(
+        uri=results.resources[0].uri,
+        context_type="resource",
+        abstract=results.resources[0].abstract
+    )
+])
+
+# Track actually used contexts
+session.used(contexts=[results.resources[0].uri])
+```
+
+</CodeGroup>
+
+### Message with Tool Call
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/sessions/a1b2c3d4/messages \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "role": "assistant",
+    "parts": [
+      {
+        "type": "text",
+        "text": "Let me search for that information..."
+      },
+      {
+        "type": "tool",
+        "tool_id": "call_123",
+        "tool_name": "search_web",
+        "skill_uri": "viking://skills/search-web/",
+        "tool_input": {"query": "OAuth best practices"},
+        "tool_output": "Found 5 results...",
+        "tool_status": "completed"
+      }
+    ]
+  }'
+```
+
+```python Python SDK
+from openviking.message import TextPart, ToolPart
+
+# Add message with tool call
+session.add_message("assistant", [
+    TextPart(text="Let me search for that..."),
+    ToolPart(
+        tool_id="call_123",
+        tool_name="search_web",
+        skill_uri="viking://skills/search-web/",
+        tool_input={"query": "OAuth best practices"},
+        tool_output="Found 5 results...",
+        tool_status="completed"
+    )
+])
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "session_id": "a1b2c3d4",
+    "message_count": 3
+  },
+  "time": 0.1
+}
+```
+
+## Message Roles
+
+- **user** - Messages from the end user
+- **assistant** - Messages from the AI assistant
+
+## Part Types
+
+### Text Part
+
+Simple text content:
+
+```python
+TextPart(text="Your message here")
+```
+
+### Context Part
+
+Reference to a resource, memory, or skill:
+
+```python
+ContextPart(
+    uri="viking://resources/docs/auth/",
+    context_type="resource",  # "resource", "memory", or "skill"
+    abstract="Brief description"
+)
+```
+
+### Tool Part
+
+Tool execution record:
+
+```python
+ToolPart(
+    tool_id="call_123",
+    tool_name="search_web",
+    skill_uri="viking://skills/search-web/",
+    tool_input={"query": "search term"},
+    tool_output="Results...",
+    tool_status="completed"  # "pending", "running", "completed", "error"
+)
+```
+
+## Best Practices
+
+### Always Track Context Usage
+
+```python
+# Search for context
+results = client.search(query, session=session)
+
+# Add message with context
+session.add_message("assistant", [
+    TextPart(text="Based on the docs..."),
+    ContextPart(uri=results.resources[0].uri, context_type="resource")
+])
+
+# Mark context as actually used
+session.used(contexts=[results.resources[0].uri])
+```
+
+### Structure Messages Properly
+
+Use parts for rich messages instead of mixing everything into text:
+
+```python
+# Good: Structured with parts
+session.add_message("assistant", [
+    TextPart(text="Here's the solution:"),
+    ContextPart(uri="viking://resources/solution.md", context_type="resource")
+])
+
+# Avoid: Mixing URIs in text
+session.add_message("assistant", [
+    TextPart(text="See viking://resources/solution.md for details")
+])
+```
+
+## Related Endpoints
+
+- [Create Session](/api/sessions/create-session) - Create a new session
+- [Get Session](/api/sessions/get-session) - Retrieve session and messages
+- [Commit Session](/api/sessions/commit-session) - Archive messages and extract memories

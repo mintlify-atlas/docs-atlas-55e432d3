@@ -1,0 +1,456 @@
+---
+title: Configuration
+description: Complete configuration guide for OpenViking including models, storage, and server settings
+---
+
+OpenViking uses JSON configuration files to manage settings for embedding models, storage backends, server deployment, and more.
+
+## Configuration Files
+
+OpenViking uses two config files:
+
+| File | Purpose | Default Path |
+|------|---------|-------------|
+| `ov.conf` | SDK embedded mode + server config | `~/.openviking/ov.conf` |
+| `ovcli.conf` | HTTP client and CLI connection to remote server | `~/.openviking/ovcli.conf` |
+
+<Info>
+When config files are at the default path, OpenViking loads them automatically — no additional setup needed.
+</Info>
+
+If config files are at a different location:
+
+<CodeGroup>
+```bash Environment Variable
+export OPENVIKING_CONFIG_FILE=/path/to/ov.conf
+export OPENVIKING_CLI_CONFIG_FILE=/path/to/ovcli.conf
+```
+
+```bash Command Line (Server Only)
+openviking-server --config /path/to/ov.conf
+```
+</CodeGroup>
+
+## Quick Start Configuration
+
+Create `~/.openviking/ov.conf`:
+
+```json
+{
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "doubao-embedding-vision-250615",
+      "dimension": 1024,
+      "input": "multimodal"
+    }
+  },
+  "vlm": {
+    "provider": "volcengine",
+    "api_key": "your-api-key",
+    "model": "doubao-seed-2-0-pro-260215"
+  },
+  "storage": {
+    "workspace": "./data",
+    "agfs": { "backend": "local" },
+    "vectordb": { "backend": "local" }
+  }
+}
+```
+
+## Embedding Configuration
+
+Embedding models convert text and multimodal content into vectors for semantic search.
+
+### Dense Embedding
+
+```json
+{
+  "embedding": {
+    "max_concurrent": 10,
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "doubao-embedding-vision-250615",
+      "dimension": 1024,
+      "input": "multimodal"
+    }
+  }
+}
+```
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `max_concurrent` | int | Maximum concurrent embedding requests (default: `10`) |
+| `provider` | string | `"volcengine"`, `"openai"`, `"vikingdb"`, or `"jina"` |
+| `api_key` | string | API key for authentication |
+| `model` | string | Model name |
+| `dimension` | int | Vector dimension (must match model output) |
+| `input` | string | Input type: `"text"` or `"multimodal"` |
+| `batch_size` | int | Batch size for embedding requests |
+
+<Accordion title="Volcengine (Doubao) Configuration">
+```json
+{
+  "embedding": {
+    "dense": {
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key": "your-volcengine-api-key",
+      "provider": "volcengine",
+      "dimension": 1024,
+      "model": "doubao-embedding-vision-250615",
+      "input": "multimodal"
+    }
+  }
+}
+```
+
+Recommended models:
+- `doubao-embedding-vision-250615` (1024 dim, multimodal)
+- `doubao-embedding-250615` (1024 dim, text only)
+</Accordion>
+
+<Accordion title="OpenAI Configuration">
+```json
+{
+  "embedding": {
+    "dense": {
+      "api_base": "https://api.openai.com/v1",
+      "api_key": "your-openai-api-key",
+      "provider": "openai",
+      "dimension": 3072,
+      "model": "text-embedding-3-large"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Jina AI Configuration">
+```json
+{
+  "embedding": {
+    "dense": {
+      "provider": "jina",
+      "api_key": "jina_xxx",
+      "model": "jina-embeddings-v5-text-small",
+      "dimension": 1024
+    }
+  }
+}
+```
+
+Available models:
+- `jina-embeddings-v5-text-small`: 677M params, 1024 dim, max seq 32768
+- `jina-embeddings-v5-text-nano`: 239M params, 768 dim, max seq 8192
+
+<Tip>Get your API key at [jina.ai](https://jina.ai). Jina models support local deployment via GGUF/MLX.</Tip>
+</Accordion>
+
+### Hybrid Embedding
+
+Combine dense and sparse embeddings for better retrieval:
+
+<CodeGroup>
+```json Single Hybrid Model
+{
+  "embedding": {
+    "hybrid": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "doubao-embedding-hybrid",
+      "dimension": 1024
+    }
+  }
+}
+```
+
+```json Dense + Sparse Combination
+{
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "doubao-embedding-vision-250615",
+      "dimension": 1024
+    },
+    "sparse": {
+      "provider": "volcengine",
+      "api_key": "your-api-key",
+      "model": "bm25-sparse-v1"
+    }
+  }
+}
+```
+</CodeGroup>
+
+## VLM Configuration
+
+Vision Language Models generate semantic abstracts (L0) and overviews (L1) for resources.
+
+```json
+{
+  "vlm": {
+    "api_key": "your-api-key",
+    "model": "doubao-seed-2-0-pro-260215",
+    "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+    "thinking": false,
+    "max_concurrent": 100
+  }
+}
+```
+
+**Parameters**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `api_key` | string | API key |
+| `model` | string | Model name |
+| `api_base` | string | API endpoint (optional) |
+| `thinking` | boolean | Enable thinking mode for VolcEngine models (default: `false`) |
+| `max_concurrent` | int | Maximum concurrent semantic LLM calls (default: `100`) |
+
+<Warning>
+If VLM is not configured, L0/L1 will be generated from content directly (less semantic), and multimodal resources may have limited descriptions.
+</Warning>
+
+## Storage Configuration
+
+Configure file storage (AGFS) and vector database backends.
+
+```json
+{
+  "storage": {
+    "workspace": "./data",
+    "agfs": {
+      "backend": "local",
+      "timeout": 10
+    },
+    "vectordb": {
+      "backend": "local",
+      "name": "context",
+      "project": "default"
+    }
+  }
+}
+```
+
+### AGFS Backend
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|------|
+| `mode` | string | `"http-client"` or `"binding-client"` | `"http-client"` |
+| `backend` | string | `"local"`, `"s3"`, or `"memory"` | `"local"` |
+| `url` | string | AGFS service URL for http-client mode | `"http://localhost:1833"` |
+| `timeout` | float | Request timeout in seconds | `10.0` |
+
+<Accordion title="S3 Backend Configuration">
+```json
+{
+  "storage": {
+    "agfs": {
+      "backend": "s3",
+      "s3": {
+        "bucket": "my-bucket",
+        "endpoint": "s3.amazonaws.com",
+        "region": "us-east-1",
+        "access_key": "your-ak",
+        "secret_key": "your-sk",
+        "use_ssl": true,
+        "use_path_style": true
+      }
+    }
+  }
+}
+```
+
+**S3 Parameters**
+
+| Parameter | Description |
+|-----------|-------------|
+| `bucket` | S3 bucket name |
+| `region` | AWS region (e.g., `us-east-1`, `cn-beijing`) |
+| `access_key` | S3 access key ID |
+| `secret_key` | S3 secret access key |
+| `endpoint` | Custom S3 endpoint for MinIO, LocalStack, etc. |
+| `prefix` | Optional key prefix for namespace isolation |
+| `use_ssl` | Enable HTTPS (default: `true`) |
+| `use_path_style` | Use PathStyle (MinIO, SeaweedFS) vs VirtualHostStyle (TOS) |
+</Accordion>
+
+### Vector Database Backend
+
+| Parameter | Type | Description | Default |
+|-----------|------|-------------|------|
+| `backend` | string | `"local"`, `"http"`, `"volcengine"`, or `"vikingdb"` | `"local"` |
+| `name` | string | VectorDB collection name | `"context"` |
+| `url` | string | Remote service URL for http backend | `null` |
+| `project_name` | string | Project name | `"default"` |
+| `dimension` | int | Vector embedding dimension | `0` |
+
+<Accordion title="Volcengine VikingDB">
+```json
+{
+  "storage": {
+    "vectordb": {
+      "name": "context",
+      "backend": "volcengine",
+      "project": "default",
+      "volcengine": {
+        "region": "cn-beijing",
+        "ak": "your-access-key",
+        "sk": "your-secret-key"
+      }
+    }
+  }
+}
+```
+</Accordion>
+
+## Server Configuration
+
+When running OpenViking as an HTTP service, add a `server` section:
+
+```json
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 1933,
+    "root_api_key": "your-secret-root-key",
+    "cors_origins": ["*"]
+  }
+}
+```
+
+| Field | Type | Description | Default |
+|-------|------|-------------|------|
+| `host` | string | Bind address | `"0.0.0.0"` |
+| `port` | int | Bind port | `1933` |
+| `root_api_key` | string | Root API key for multi-tenant auth (disabled if not set) | `null` |
+| `cors_origins` | array | Allowed CORS origins | `["*"]` |
+
+<Warning>
+When `root_api_key` is not set, authentication is disabled (dev mode). This is only allowed when binding to localhost (`127.0.0.1`).
+</Warning>
+
+## CLI Client Configuration
+
+Create `~/.openviking/ovcli.conf` for the HTTP client and CLI:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "your-secret-key",
+  "agent_id": "my-agent",
+  "timeout": 60.0,
+  "output": "table",
+  "echo_command": true
+}
+```
+
+| Field | Description | Default |
+|-------|-------------|------|
+| `url` | Server address | (required) |
+| `api_key` | API key for authentication | `null` |
+| `agent_id` | Agent identifier for isolation | `null` |
+| `timeout` | Request timeout in seconds | `60.0` |
+| `output` | Output format: `"table"` or `"json"` | `"table"` |
+
+## Advanced Configuration
+
+### Code Summary Mode
+
+Control how code files are summarized:
+
+```json
+{
+  "code": {
+    "code_summary_mode": "ast"
+  }
+}
+```
+
+| Mode | Description |
+|------|-------------|
+| `"ast"` | Extract AST skeleton (class names, method signatures) for files ≥100 lines (recommended) |
+| `"llm"` | Always use LLM for summarization (higher cost) |
+| `"ast_llm"` | Extract AST first, then pass to LLM (highest quality) |
+
+### Reranking
+
+Reranking improves search result quality:
+
+```json
+{
+  "rerank": {
+    "provider": "volcengine",
+    "api_key": "your-api-key",
+    "model": "doubao-rerank-250615",
+    "threshold": 0.1
+  }
+}
+```
+
+### Logging
+
+```json
+{
+  "log": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "output": "stdout",
+    "rotation": true,
+    "rotation_days": 3
+  }
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="API Key Error">
+```
+Error: Invalid API key
+```
+
+Check your API key is correct and has the required permissions.
+</Accordion>
+
+<Accordion title="Vector Dimension Mismatch">
+```
+Error: Vector dimension mismatch
+```
+
+Ensure the `dimension` in config matches the model's output dimension.
+</Accordion>
+
+<Accordion title="VLM Timeout">
+```
+Error: VLM request timeout
+```
+
+- Check network connectivity
+- Increase timeout in config
+- Try a smaller model
+</Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Server deployment and production setup
+  </Card>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    API key setup and multi-tenant auth
+  </Card>
+  <Card title="Python SDK" icon="python" href="/guides/python-sdk">
+    Complete Python SDK reference
+  </Card>
+  <Card title="CLI Usage" icon="terminal" href="/guides/cli-usage">
+    Command-line interface guide
+  </Card>
+</CardGroup>

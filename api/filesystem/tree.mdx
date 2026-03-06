@@ -1,0 +1,137 @@
+---
+title: "tree"
+description: "Get directory tree structure"
+---
+
+Get a recursive tree view of directory contents, showing the complete hierarchy.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Get directory tree
+entries = client.tree("viking://resources/")
+for entry in entries:
+    type_str = "dir" if entry['isDir'] else "file"
+    print(f"{entry['rel_path']} - {type_str}")
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X GET "http://localhost:1933/api/v1/fs/tree?uri=viking://resources/" \
+  -H "X-API-Key: your-key"
+```
+</CodeGroup>
+
+<RequestExample>
+```http
+GET /api/v1/fs/tree?uri=viking://resources/
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  Viking URI of the directory
+</ParamField>
+
+<ParamField path="output" type="string" default="agent">
+  Output format: `original` or `agent`
+</ParamField>
+
+<ParamField path="abs_limit" type="integer" default="128">
+  Abstract limit (only for agent output mode)
+</ParamField>
+
+<ParamField path="show_all_hidden" type="boolean" default="false">
+  List all hidden files (like `ls -a`)
+</ParamField>
+
+<ParamField path="node_limit" type="integer" default="1000">
+  Maximum number of nodes to traverse
+</ParamField>
+
+<ParamField path="level_limit" type="integer" default="3">
+  Maximum depth level to traverse
+</ParamField>
+
+## Response
+
+Returns a flat array of all entries in the tree, each with a `rel_path` field showing its position in the hierarchy.
+
+<ResponseField name="name" type="string">
+  File or directory name
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Size in bytes
+</ResponseField>
+
+<ResponseField name="isDir" type="boolean">
+  `true` if directory, `false` if file
+</ResponseField>
+
+<ResponseField name="rel_path" type="string">
+  Relative path from the base URI
+</ResponseField>
+
+<ResponseField name="uri" type="string">
+  Full Viking URI
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": [
+    {
+      "name": "docs",
+      "size": 4096,
+      "isDir": true,
+      "rel_path": "docs/",
+      "uri": "viking://resources/docs/"
+    },
+    {
+      "name": "api.md",
+      "size": 1024,
+      "isDir": false,
+      "rel_path": "docs/api.md",
+      "uri": "viking://resources/docs/api.md"
+    },
+    {
+      "name": "guides",
+      "size": 4096,
+      "isDir": true,
+      "rel_path": "docs/guides/",
+      "uri": "viking://resources/docs/guides/"
+    },
+    {
+      "name": "quickstart.md",
+      "size": 512,
+      "isDir": false,
+      "rel_path": "docs/guides/quickstart.md",
+      "uri": "viking://resources/docs/guides/quickstart.md"
+    }
+  ],
+  "time": 0.2
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking tree viking://resources/my-project/
+```
+
+## Notes
+
+- The tree is returned as a flat array, not a nested structure
+- Use `rel_path` to understand the hierarchy
+- Default `level_limit` of 3 prevents extremely deep traversals
+- Use `node_limit` to prevent memory issues with very large directories

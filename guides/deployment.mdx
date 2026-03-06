@@ -1,0 +1,475 @@
+---
+title: Deployment
+description: Deploy OpenViking as a standalone HTTP server for production use
+---
+
+OpenViking can run as a standalone HTTP server, allowing multiple clients to connect over the network.
+
+## Quick Start
+
+<Steps>
+  <Step title="Create Configuration">
+    Create `~/.openviking/ov.conf` with your settings:
+    
+    ```json
+    {
+      "server": {
+        "host": "0.0.0.0",
+        "port": 1933,
+        "root_api_key": "your-secret-root-key"
+      },
+      "storage": {
+        "workspace": "./data",
+        "agfs": { "backend": "local" },
+        "vectordb": { "backend": "local" }
+      },
+      "embedding": {
+        "dense": {
+          "provider": "volcengine",
+          "api_key": "your-embedding-api-key",
+          "model": "doubao-embedding-vision-250615",
+          "dimension": 1024
+        }
+      },
+      "vlm": {
+        "provider": "volcengine",
+        "api_key": "your-vlm-api-key",
+        "model": "doubao-seed-2-0-pro-260215"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Start Server">
+    ```bash
+    openviking-server
+    ```
+    
+    Or specify a custom config path:
+    ```bash
+    openviking-server --config /path/to/ov.conf
+    ```
+  </Step>
+  
+  <Step title="Verify">
+    ```bash
+    curl http://localhost:1933/health
+    # {"status": "ok"}
+    ```
+  </Step>
+</Steps>
+
+## Command Line Options
+
+| Option | Description | Default |
+|--------|-------------|------|
+| `--config` | Path to ov.conf file | `~/.openviking/ov.conf` |
+| `--host` | Host to bind to | `0.0.0.0` |
+| `--port` | Port to bind to | `1933` |
+
+**Examples**
+
+```bash
+# With default config
+openviking-server
+
+# With custom port
+openviking-server --port 8000
+
+# With custom config, host, and port
+openviking-server --config /path/to/ov.conf --host 127.0.0.1 --port 8000
+```
+
+## Deployment Modes
+
+### Standalone (Embedded Storage)
+
+Server manages local AGFS and VectorDB:
+
+```json
+{
+  "storage": {
+    "workspace": "./data",
+    "agfs": { "backend": "local" },
+    "vectordb": { "backend": "local" }
+  }
+}
+```
+
+<Info>
+Best for development and small deployments. All data is stored locally.
+</Info>
+
+### Hybrid (Remote Storage)
+
+Server connects to remote AGFS and VectorDB services:
+
+```json
+{
+  "storage": {
+    "agfs": { 
+      "backend": "http", 
+      "url": "http://agfs:1833" 
+    },
+    "vectordb": { 
+      "backend": "http", 
+      "url": "http://vectordb:8000" 
+    }
+  }
+}
+```
+
+<Tip>
+Recommended for production. Enables horizontal scaling and shared storage.
+</Tip>
+
+## Production Deployment
+
+### Systemd Service (Linux)
+
+For Linux systems, use Systemd to manage OpenViking as a service.
+
+<Steps>
+  <Step title="Create Service File">
+    Create `/etc/systemd/system/openviking.service`:
+    
+    ```ini
+    [Unit]
+    Description=OpenViking HTTP Server
+    After=network.target
+    
+    [Service]
+    Type=simple
+    WorkingDirectory=/var/lib/openviking
+    ExecStart=/usr/bin/openviking-server
+    Restart=always
+    RestartSec=5
+    Environment="OPENVIKING_CONFIG_FILE=/etc/openviking/ov.conf"
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  </Step>
+  
+  <Step title="Enable and Start">
+    ```bash
+    # Reload systemd configuration
+    sudo systemctl daemon-reload
+    
+    # Start the service
+    sudo systemctl start openviking.service
+    
+    # Enable service on boot
+    sudo systemctl enable openviking.service
+    ```
+  </Step>
+  
+  <Step title="Manage Service">
+    ```bash
+    # Check service status
+    sudo systemctl status openviking.service
+    
+    # View service logs
+    sudo journalctl -u openviking.service -f
+    
+    # Restart service
+    sudo systemctl restart openviking.service
+    ```
+  </Step>
+</Steps>
+
+### Docker
+
+OpenViking provides pre-built Docker images:
+
+<CodeGroup>
+```bash Docker Run
+docker run -d \
+  --name openviking \
+  -p 1933:1933 \
+  -v ~/.openviking/ov.conf:/app/ov.conf \
+  -v /var/lib/openviking/data:/app/data \
+  --restart unless-stopped \
+  ghcr.io/volcengine/openviking:main
+```
+
+```yaml Docker Compose
+version: '3.8'
+
+services:
+  openviking:
+    image: ghcr.io/volcengine/openviking:main
+    ports:
+      - "1933:1933"
+    volumes:
+      - ~/.openviking/ov.conf:/app/ov.conf
+      - /var/lib/openviking/data:/app/data
+    restart: unless-stopped
+```
+</CodeGroup>
+
+Start with Docker Compose:
+```bash
+docker compose up -d
+```
+
+<Tip>
+To build the image yourself: `docker build -t openviking:latest .`
+</Tip>
+
+### Kubernetes + Helm
+
+The project provides a Helm chart at `examples/k8s-helm/`.
+
+<Steps>
+  <Step title="Install with Helm">
+    ```bash
+    helm install openviking ./examples/k8s-helm \
+      --set openviking.config.embedding.dense.api_key="YOUR_API_KEY" \
+      --set openviking.config.vlm.api_key="YOUR_API_KEY"
+    ```
+  </Step>
+  
+  <Step title="Verify Deployment">
+    ```bash
+    kubectl get pods -l app=openviking
+    kubectl logs -f deployment/openviking
+    ```
+  </Step>
+  
+  <Step title="Access Service">
+    ```bash
+    kubectl port-forward svc/openviking 1933:1933
+    curl http://localhost:1933/health
+    ```
+  </Step>
+</Steps>
+
+<Info>
+For detailed cloud deployment with Volcengine TOS + VikingDB + Ark, see `examples/cloud/GUIDE.md`.
+</Info>
+
+## Health Checks
+
+| Endpoint | Auth | Purpose |
+|----------|------|------|
+| `GET /health` | No | Liveness probe — returns `{"status": "ok"}` immediately |
+| `GET /ready` | No | Readiness probe — checks AGFS, VectorDB, APIKeyManager |
+
+<CodeGroup>
+```bash Liveness Check
+curl http://localhost:1933/health
+# {"status": "ok"}
+```
+
+```bash Readiness Check
+curl http://localhost:1933/ready
+# {"status": "ready", "checks": {"agfs": "ok", "vectordb": "ok", "api_key_manager": "ok"}}
+```
+</CodeGroup>
+
+<Tip>
+Use `/health` for Kubernetes liveness probes and `/ready` for readiness probes.
+</Tip>
+
+## Connecting Clients
+
+### Python SDK
+
+<CodeGroup>
+```python Sync Client
+import openviking as ov
+
+client = ov.SyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="your-key",
+    agent_id="my-agent"
+)
+
+client.initialize()
+results = client.find("how to use openviking")
+client.close()
+```
+
+```python Async Client
+import openviking as ov
+
+client = ov.AsyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="your-key",
+    agent_id="my-agent"
+)
+
+await client.initialize()
+results = await client.find("how to use openviking")
+await client.close()
+```
+</CodeGroup>
+
+### CLI
+
+Create `~/.openviking/ovcli.conf`:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "your-key",
+  "agent_id": "my-agent"
+}
+```
+
+Then use the CLI:
+```bash
+ov ls viking://resources/
+ov find "what is openviking"
+```
+
+### curl
+
+```bash
+curl http://localhost:1933/api/v1/fs/ls?uri=viking:// \
+  -H "X-API-Key: your-key"
+```
+
+## Cloud Provider Examples
+
+<AccordionGroup>
+<Accordion title="AWS Deployment">
+**S3 + EKS Configuration**
+
+```json
+{
+  "storage": {
+    "agfs": {
+      "backend": "s3",
+      "s3": {
+        "bucket": "openviking-data",
+        "region": "us-east-1",
+        "access_key": "AKIA...",
+        "secret_key": "...",
+        "use_path_style": false
+      }
+    },
+    "vectordb": {
+      "backend": "http",
+      "url": "http://vectordb.default.svc.cluster.local:8000"
+    }
+  }
+}
+```
+
+Deploy to EKS:
+```bash
+helm install openviking ./examples/k8s-helm \
+  --set openviking.config.storage.agfs.backend=s3 \
+  --set openviking.config.storage.agfs.s3.bucket=openviking-data
+```
+</Accordion>
+
+<Accordion title="Volcengine Deployment">
+**TOS + VikingDB Configuration**
+
+```json
+{
+  "storage": {
+    "agfs": {
+      "backend": "s3",
+      "s3": {
+        "bucket": "openviking",
+        "endpoint": "tos-s3-cn-beijing.volces.com",
+        "region": "cn-beijing",
+        "access_key": "AK...",
+        "secret_key": "...",
+        "use_path_style": false
+      }
+    },
+    "vectordb": {
+      "backend": "volcengine",
+      "name": "context",
+      "volcengine": {
+        "region": "cn-beijing",
+        "ak": "AK...",
+        "sk": "..."
+      }
+    }
+  },
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",
+      "api_key": "...",
+      "model": "doubao-embedding-vision-250615"
+    }
+  }
+}
+```
+</Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<Warning>
+When no `root_api_key` is configured, authentication is disabled. This is **only allowed** when binding to localhost (`127.0.0.1`). The server will refuse to start if `host` is `0.0.0.0` without authentication.
+</Warning>
+
+<Steps>
+  <Step title="Always Set root_api_key">
+    ```json
+    {
+      "server": {
+        "root_api_key": "generated-secure-key-here"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Use HTTPS in Production">
+    Place OpenViking behind a reverse proxy (nginx, Caddy) with TLS:
+    
+    ```nginx
+    server {
+        listen 443 ssl;
+        server_name openviking.example.com;
+        
+        ssl_certificate /path/to/cert.pem;
+        ssl_certificate_key /path/to/key.pem;
+        
+        location / {
+            proxy_pass http://localhost:1933;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Restrict Network Access">
+    Use firewall rules to restrict access to trusted IPs:
+    
+    ```bash
+    # Allow only specific IPs
+    sudo ufw allow from 10.0.0.0/8 to any port 1933
+    sudo ufw deny 1933
+    ```
+  </Step>
+</Steps>
+
+## Monitoring
+
+For health checks and system monitoring, see the [Monitoring Guide](/guides/monitoring).
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Complete configuration reference
+  </Card>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    API key setup and multi-tenant auth
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/guides/monitoring">
+    Health checks and observability
+  </Card>
+  <Card title="Python SDK" icon="python" href="/guides/python-sdk">
+    Connect with Python
+  </Card>
+</CardGroup>

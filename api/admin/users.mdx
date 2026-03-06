@@ -1,0 +1,439 @@
+---
+title: User Management
+---
+
+Manage users within workspaces in multi-tenant deployments. Users can have ADMIN or USER roles, each with different permissions.
+
+<Note>
+Admin APIs require `root_api_key` to be configured in the server. ROOT users can manage all accounts, while ADMIN users can only manage their own workspace.
+</Note>
+
+## Roles and Permissions
+
+| Role | Permissions |
+|------|-------------|
+| ROOT | System administrator with full access to all workspaces |
+| ADMIN | Workspace administrator, manages users within their account |
+| USER | Regular user with access to their own data |
+
+| Operation | ROOT | ADMIN | USER |
+|-----------|------|-------|------|
+| Register/remove users | All accounts | Own account only | ❌ |
+| Regenerate user key | All accounts | Own account only | ❌ |
+| List users | All accounts | Own account only | ❌ |
+| Change user role | ✅ | ❌ | ❌ |
+
+## Register User
+
+<api>POST /api/v1/admin/accounts/{account_id}/users</api>
+
+Register a new user in a workspace.
+
+**Authentication:** ROOT or ADMIN (own account only)
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID where the user will be registered
+</ParamField>
+
+### Request Body
+
+<ParamField body="user_id" type="string" required>
+  Unique user identifier within the workspace
+</ParamField>
+
+<ParamField body="role" type="string" default="user">
+  User role: `admin` or `user`
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Registration result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="account_id" type="string">
+      Workspace ID
+    </ResponseField>
+    
+    <ResponseField name="user_id" type="string">
+      Registered user ID
+    </ResponseField>
+    
+    <ResponseField name="user_key" type="string">
+      Generated API key for the user (save this - it cannot be retrieved later)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <admin-or-root-key>" \
+  -d '{
+    "user_id": "bob",
+    "role": "user"
+  }'
+```
+
+```bash CLI
+openviking admin register-user acme bob --role user
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "user_id": "bob",
+    "user_key": "d91f5b2a8e3c7f1a..."
+  },
+  "time": 0.12
+}
+```
+
+</ResponseExample>
+
+## List Users
+
+<api>GET /api/v1/admin/accounts/{account_id}/users</api>
+
+List all users in a workspace.
+
+**Authentication:** ROOT or ADMIN (own account only)
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID to list users from
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  Array of users in the workspace
+  
+  <Expandable title="User Object">
+    <ResponseField name="user_id" type="string">
+      User identifier
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role (`admin` or `user`)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://localhost:1933/api/v1/admin/accounts/acme/users \
+  -H "X-API-Key: <admin-or-root-key>"
+```
+
+```bash CLI
+openviking admin list-users acme
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": [
+    {
+      "user_id": "alice",
+      "role": "admin"
+    },
+    {
+      "user_id": "bob",
+      "role": "user"
+    }
+  ],
+  "time": 0.05
+}
+```
+
+</ResponseExample>
+
+## Remove User
+
+<api>DELETE /api/v1/admin/accounts/{account_id}/users/{user_id}</api>
+
+Remove a user from a workspace. The user's API key is immediately invalidated.
+
+**Authentication:** ROOT or ADMIN (own account only)
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID
+</ParamField>
+
+<ParamField path="user_id" type="string" required>
+  User ID to remove
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Deletion result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="deleted" type="boolean">
+      Always `true` on success
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE http://localhost:1933/api/v1/admin/accounts/acme/users/bob \
+  -H "X-API-Key: <admin-or-root-key>"
+```
+
+```bash CLI
+openviking admin remove-user acme bob
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "deleted": true
+  },
+  "time": 0.08
+}
+```
+
+</ResponseExample>
+
+## Set User Role
+
+<api>PUT /api/v1/admin/accounts/{account_id}/users/{user_id}/role</api>
+
+Change a user's role. **ROOT only.**
+
+**Authentication:** ROOT only
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID
+</ParamField>
+
+<ParamField path="user_id" type="string" required>
+  User ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="role" type="string" required>
+  New role: `admin` or `user`
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Role change result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="account_id" type="string">
+      Workspace ID
+    </ResponseField>
+    
+    <ResponseField name="user_id" type="string">
+      User ID
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      New role
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT http://localhost:1933/api/v1/admin/accounts/acme/users/bob/role \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <root-key>" \
+  -d '{"role": "admin"}'
+```
+
+```bash CLI
+openviking admin set-role acme bob admin
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "account_id": "acme",
+    "user_id": "bob",
+    "role": "admin"
+  },
+  "time": 0.06
+}
+```
+
+</ResponseExample>
+
+## Regenerate API Key
+
+<api>POST /api/v1/admin/accounts/{account_id}/users/{user_id}/key</api>
+
+Regenerate a user's API key. The old key is immediately invalidated.
+
+**Authentication:** ROOT or ADMIN (own account only)
+
+<Warning>
+The old API key becomes invalid immediately. Ensure the new key is distributed to the user before they need to make API calls.
+</Warning>
+
+### Path Parameters
+
+<ParamField path="account_id" type="string" required>
+  Workspace ID
+</ParamField>
+
+<ParamField path="user_id" type="string" required>
+  User ID
+</ParamField>
+
+### Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  New key
+  
+  <Expandable title="Result Object">
+    <ResponseField name="user_key" type="string">
+      New API key (save this - it cannot be retrieved later)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+### Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/admin/accounts/acme/users/bob/key \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: <admin-or-root-key>"
+```
+
+```bash CLI
+openviking admin regenerate-key acme bob
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "user_key": "e82d4e0f9c1b5a3d..."
+  },
+  "time": 0.07
+}
+```
+
+</ResponseExample>
+
+## Complete Workflow Example
+
+```bash
+# Step 1: ROOT creates workspace with alice as first admin
+openviking admin create-account acme --admin alice
+# Returns alice's user_key
+
+# Step 2: alice (admin) registers regular user bob
+openviking admin register-user acme bob --role user
+# Returns bob's user_key
+
+# Step 3: List all users in the account
+openviking admin list-users acme
+
+# Step 4: ROOT promotes bob to admin
+openviking admin set-role acme bob admin
+
+# Step 5: bob lost their key, regenerate (old key immediately invalidated)
+openviking admin regenerate-key acme bob
+
+# Step 6: Remove user
+openviking admin remove-user acme bob
+```
+
+## Related Endpoints
+
+- [API Key Management](/api/admin/api-keys) - Workspace management
+- [System Status](/api/system/status) - Check current user

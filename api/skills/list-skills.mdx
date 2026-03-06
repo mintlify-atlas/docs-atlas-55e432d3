@@ -1,0 +1,150 @@
+---
+title: List Skills
+api: GET /api/v1/fs/ls?uri=viking://agent/skills/
+---
+
+List all available skills in the knowledge base. Skills can be invoked by agents to perform specific tasks.
+
+<Note>
+Skills are stored at `viking://agent/skills/` in the Agent General File System (AGFS).
+</Note>
+
+## Authentication
+
+Requires API key authentication via `X-API-Key` header.
+
+## Query Parameters
+
+<ParamField query="uri" type="string" required>
+  The URI to list. Use `viking://agent/skills/` to list all skills.
+</ParamField>
+
+<ParamField query="simple" type="boolean" default="false">
+  If true, returns only skill names. If false, returns full metadata.
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="array">
+  Array of skills with metadata
+  
+  <Expandable title="Skill Object">
+    <ResponseField name="name" type="string">
+      Skill name in kebab-case (e.g., `search-web`)
+    </ResponseField>
+    
+    <ResponseField name="uri" type="string">
+      Full URI path to the skill (e.g., `viking://agent/skills/search-web/`)
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Resource type (always `directory` for skills)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET "http://localhost:1933/api/v1/fs/ls?uri=viking://agent/skills/" \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+# List all skills with metadata
+skills = client.ls("viking://agent/skills/")
+for skill in skills:
+    print(f"{skill['name']}: {skill['uri']}")
+
+# Simple list (names only)
+names = client.ls("viking://agent/skills/", simple=True)
+print(names)  # ['search-web', 'calculator', 'code-runner']
+```
+
+```bash CLI
+openviking ls viking://agent/skills/
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": [
+    {
+      "name": "search-web",
+      "uri": "viking://agent/skills/search-web/",
+      "type": "directory"
+    },
+    {
+      "name": "calculator",
+      "uri": "viking://agent/skills/calculator/",
+      "type": "directory"
+    },
+    {
+      "name": "code-runner",
+      "uri": "viking://agent/skills/code-runner/",
+      "type": "directory"
+    }
+  ],
+  "time": 0.05
+}
+```
+
+```json Simple Response
+{
+  "status": "ok",
+  "result": [
+    "search-web",
+    "calculator",
+    "code-runner"
+  ],
+  "time": 0.02
+}
+```
+
+</ResponseExample>
+
+## Skill Storage Structure
+
+Each skill is stored as a directory containing:
+
+- `.abstract.md` - L0: Brief description
+- `.overview.md` - L1: Parameters and usage
+- `SKILL.md` - L2: Full documentation
+- Auxiliary files - Any additional resources
+
+## Reading Skill Content
+
+After listing skills, use the content API to read skill documentation at different levels:
+
+```python
+uri = "viking://agent/skills/search-web/"
+
+# L0: Brief description
+abstract = client.abstract(uri)
+
+# L1: Parameters and usage overview
+overview = client.overview(uri)
+
+# L2: Full skill documentation
+content = client.read(uri)
+```
+
+## Related Endpoints
+
+- [Add Skill](/api/skills/add-skill) - Add a new skill
+- [Search Skills](/api/retrieval/find) - Semantic search for skills
+- [Remove Skill](/api/filesystem/rm) - Delete a skill

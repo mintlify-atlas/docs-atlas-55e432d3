@@ -1,0 +1,404 @@
+---
+title: "Commit Session"
+api: "POST /api/v1/sessions/{session_id}/commit"
+description: "Archive messages and extract long-term memories from a session"
+---
+
+Commit a session to archive its messages and extract long-term memories. This operation:
+
+1. **Archives** current messages to `history/archive_N/`
+2. **Extracts** memories into 6 categories (profile, preferences, entities, events, cases, patterns)
+3. **Clears** active message buffer
+4. **Updates** context usage statistics
+
+## Request
+
+### Path Parameters
+
+<ParamField path="session_id" type="string" required>
+  The session ID to commit
+</ParamField>
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Must be `application/json`
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Commit operation result
+  
+  <ResponseField name="session_id" type="string">
+    The session identifier
+  </ResponseField>
+  
+  <ResponseField name="status" type="string">
+    Commit status (usually `committed`)
+  </ResponseField>
+  
+  <ResponseField name="archived" type="boolean">
+    Whether messages were archived
+  </ResponseField>
+  
+  <ResponseField name="memories_extracted" type="number">
+    Number of long-term memories extracted
+  </ResponseField>
+  
+  <ResponseField name="active_count_updated" type="number">
+    Number of context usage records updated
+  </ResponseField>
+  
+  <ResponseField name="stats" type="object">
+    Session statistics
+    
+    <ResponseField name="total_turns" type="number">
+      Total conversation turns (user messages)
+    </ResponseField>
+    
+    <ResponseField name="contexts_used" type="number">
+      Number of contexts referenced
+    </ResponseField>
+    
+    <ResponseField name="skills_used" type="number">
+      Number of skills called
+    </ResponseField>
+    
+    <ResponseField name="memories_extracted" type="number">
+      Total memories extracted across all commits
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/sessions/a1b2c3d4/commit \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python SDK
+import openviking as ov
+from openviking.message import TextPart, ContextPart
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Create and use session
+session = client.session()
+
+# Add conversation
+session.add_message("user", [
+    TextPart(text="How do I configure embedding?")
+])
+
+# Search and add response
+results = client.search("embedding configuration", session=session)
+session.add_message("assistant", [
+    TextPart(text="You can configure embedding in config.yaml..."),
+    ContextPart(
+        uri=results.resources[0].uri,
+        context_type="resource",
+        abstract=results.resources[0].abstract
+    )
+])
+
+# Track usage
+session.used(contexts=[results.resources[0].uri])
+
+# Commit session
+result = session.commit()
+
+print(f"Status: {result['status']}")
+print(f"Archived: {result['archived']}")
+print(f"Memories extracted: {result['memories_extracted']}")
+print(f"Active count updated: {result['active_count_updated']}")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.post(
+    "http://localhost:1933/api/v1/sessions/a1b2c3d4/commit",
+    headers={
+        "Content-Type": "application/json",
+        "X-API-Key": "your-api-key"
+    }
+)
+
+result = response.json()
+print(f"Memories extracted: {result['result']['memories_extracted']}")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "session_id": "a1b2c3d4",
+    "status": "committed",
+    "archived": true,
+    "memories_extracted": 3,
+    "active_count_updated": 2,
+    "stats": {
+      "total_turns": 5,
+      "contexts_used": 2,
+      "skills_used": 1,
+      "memories_extracted": 3
+    }
+  },
+  "time": 2.5
+}
+```
+
+## Memory Extraction Categories
+
+The commit operation extracts memories into 6 categories:
+
+### User Memories
+
+<ParamField body="profile" type="category">
+  **Location:** `viking://user/{user}/memories/profile.md`
+  
+  User profile information (name, role, background, expertise)
+  
+  **Merge strategy:** Always merged into single profile.md file
+</ParamField>
+
+<ParamField body="preferences" type="category">
+  **Location:** `viking://user/{user}/memories/preferences/`
+  
+  User preferences organized by topic (coding style, communication style, tool preferences)
+  
+  **Merge strategy:** Merged by topic when similar
+</ParamField>
+
+<ParamField body="entities" type="category">
+  **Location:** `viking://user/{user}/memories/entities/`
+  
+  Important entities (people, projects, organizations, concepts)
+  
+  **Merge strategy:** Merged when referring to same entity
+</ParamField>
+
+<ParamField body="events" type="category">
+  **Location:** `viking://user/{user}/memories/events/`
+  
+  Significant events (decisions, milestones, incidents)
+  
+  **Merge strategy:** Created as separate events, not merged
+</ParamField>
+
+### Agent Memories
+
+<ParamField body="cases" type="category">
+  **Location:** `viking://agent/{agent}/memories/cases/`
+  
+  Problem-solution pairs (specific bugs fixed, issues resolved)
+  
+  **Merge strategy:** Created as separate cases, not merged
+</ParamField>
+
+<ParamField body="patterns" type="category">
+  **Location:** `viking://agent/{agent}/memories/patterns/`
+  
+  Reusable patterns (workflows, processes, interaction patterns)
+  
+  **Merge strategy:** Merged when similar patterns detected
+</ParamField>
+
+## Memory Structure
+
+Each memory is stored with three levels:
+
+```markdown
+# L0: Abstract (.abstract.md)
+One-sentence summary for quick scanning
+
+# L1: Overview (.overview.md)
+Medium-detail description with key points
+
+# L2: Content (file.md)
+Full narrative with complete context and details
+```
+
+## Archive Structure
+
+Committed messages are archived in:
+
+```
+viking://session/{user_space}/{session_id}/history/
+├── archive_001/
+│   ├── messages.jsonl      # Archived messages
+│   ├── .abstract.md        # L0: Archive summary
+│   └── .overview.md        # L1: Archive overview
+├── archive_002/
+│   ├── messages.jsonl
+│   ├── .abstract.md
+│   └── .overview.md
+└── ...
+```
+
+## When to Commit
+
+### Auto-commit by Token Count
+
+```python
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+# Check token usage
+if session.stats.total_tokens > 8000:
+    result = session.commit()
+    print(f"Auto-committed: {result['memories_extracted']} memories extracted")
+```
+
+### Commit at Natural Boundaries
+
+```python
+# After completing a task
+if task_completed:
+    session.commit()
+
+# End of conversation
+if user_says_goodbye:
+    session.commit()
+
+# After significant interaction
+if session.stats.total_turns >= 10:
+    session.commit()
+```
+
+## Full Lifecycle Example
+
+```python
+import openviking as ov
+from openviking.message import TextPart, ContextPart
+
+# Initialize
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Create session
+session = client.session()
+print(f"Session: {session.session_id}")
+
+# Conversation turn 1
+session.add_message("user", [
+    TextPart(text="How do I add a new resource?")
+])
+
+results = client.search("add resource", session=session)
+session.add_message("assistant", [
+    TextPart(text="You can use client.add_resource()..."),
+    ContextPart(
+        uri=results.resources[0].uri,
+        context_type="resource",
+        abstract="Resource management guide"
+    )
+])
+session.used(contexts=[results.resources[0].uri])
+
+# Conversation turn 2
+session.add_message("user", [
+    TextPart(text="What about indexing?")
+])
+
+results = client.search("indexing", session=session)
+session.add_message("assistant", [
+    TextPart(text="Indexing happens automatically..."),
+    ContextPart(
+        uri=results.resources[0].uri,
+        context_type="resource",
+        abstract="Indexing documentation"
+    )
+])
+session.used(contexts=[results.resources[0].uri])
+
+# Commit at end of conversation
+result = session.commit()
+
+print(f"\nCommit Results:")
+print(f"  Archived: {result['archived']}")
+print(f"  Memories extracted: {result['memories_extracted']}")
+print(f"  Stats: {result['stats']}")
+
+# Session is now cleared and ready for next conversation
+print(f"\nActive messages after commit: {len(session.messages)}")
+
+client.close()
+```
+
+## Best Practices
+
+### Always Track Usage Before Commit
+
+```python
+# Search for context
+results = client.search(query, session=session)
+
+# Add message
+session.add_message("assistant", [...])
+
+# IMPORTANT: Track what was actually used
+session.used(contexts=[results.resources[0].uri])
+
+# Commit will use this to update active_count
+session.commit()
+```
+
+### Commit Regularly
+
+Don't let sessions grow too large:
+
+```python
+# Good: Commit every 10-15 turns
+if session.stats.total_turns >= 10:
+    session.commit()
+
+# Good: Commit when context is high
+if session.stats.total_tokens > 8000:
+    session.commit()
+
+# Avoid: Never committing (loses memory)
+# Avoid: Committing too frequently (inefficient)
+```
+
+### Check Commit Results
+
+```python
+result = session.commit()
+
+if result['memories_extracted'] == 0:
+    print("Warning: No memories extracted")
+    # Maybe conversation wasn't meaningful enough
+
+if result['archived']:
+    print(f"Archived {len(session.messages)} messages")
+```
+
+## Related Endpoints
+
+- [Add Message](/api/sessions/add-message) - Add messages to session
+- [Get Session](/api/sessions/get-session) - Check session stats
+- [Create Session](/api/sessions/create-session) - Start new session
+- [Search](/api/retrieval/search) - Search with session context

@@ -1,0 +1,163 @@
+---
+title: "ls"
+description: "List directory contents"
+---
+
+List the contents of a directory.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Basic listing
+entries = client.ls("viking://resources/")
+for entry in entries:
+    type_str = "dir" if entry['isDir'] else "file"
+    print(f"{entry['name']} - {type_str}")
+
+# Simple path list (URIs only)
+paths = client.ls("viking://resources/", simple=True)
+for path in paths:
+    print(path)
+
+# Recursive listing
+all_entries = client.ls("viking://resources/", recursive=True)
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash Basic Listing
+curl -X GET "http://localhost:1933/api/v1/fs/ls?uri=viking://resources/" \
+  -H "X-API-Key: your-key"
+```
+
+```bash Simple Mode
+curl -X GET "http://localhost:1933/api/v1/fs/ls?uri=viking://resources/&simple=true" \
+  -H "X-API-Key: your-key"
+```
+
+```bash Recursive
+curl -X GET "http://localhost:1933/api/v1/fs/ls?uri=viking://resources/&recursive=true" \
+  -H "X-API-Key: your-key"
+```
+</CodeGroup>
+
+<RequestExample>
+```http
+GET /api/v1/fs/ls?uri=viking://resources/
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  Viking URI of the directory to list
+</ParamField>
+
+<ParamField path="simple" type="boolean" default="false">
+  Return only relative paths instead of full entry objects
+</ParamField>
+
+<ParamField path="recursive" type="boolean" default="false">
+  List all subdirectories recursively
+</ParamField>
+
+<ParamField path="output" type="string" default="agent">
+  Output format: `original` or `agent`
+</ParamField>
+
+<ParamField path="abs_limit" type="integer" default="256">
+  Abstract limit (only for agent output mode)
+</ParamField>
+
+<ParamField path="show_all_hidden" type="boolean" default="false">
+  List all hidden files (like `ls -a`)
+</ParamField>
+
+<ParamField path="node_limit" type="integer" default="1000">
+  Maximum number of nodes to list
+</ParamField>
+
+## Response
+
+Returns an array of directory entries (or paths if `simple=true`).
+
+### Entry Object
+
+<ResponseField name="name" type="string">
+  File or directory name
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Size in bytes
+</ResponseField>
+
+<ResponseField name="mode" type="integer">
+  File mode (Unix permissions)
+</ResponseField>
+
+<ResponseField name="modTime" type="string">
+  ISO timestamp of last modification
+</ResponseField>
+
+<ResponseField name="isDir" type="boolean">
+  `true` if directory, `false` if file
+</ResponseField>
+
+<ResponseField name="uri" type="string">
+  Viking URI of the entry
+</ResponseField>
+
+<ResponseField name="meta" type="object">
+  Optional metadata
+</ResponseField>
+
+<ResponseExample>
+```json Standard Response
+{
+  "status": "ok",
+  "result": [
+    {
+      "name": "docs",
+      "size": 4096,
+      "mode": 16877,
+      "modTime": "2024-01-01T00:00:00Z",
+      "isDir": true,
+      "uri": "viking://resources/docs/",
+      "meta": {}
+    },
+    {
+      "name": "README.md",
+      "size": 1024,
+      "mode": 33188,
+      "modTime": "2024-01-01T12:00:00Z",
+      "isDir": false,
+      "uri": "viking://resources/README.md",
+      "meta": {}
+    }
+  ],
+  "time": 0.1
+}
+```
+
+```json Simple Response
+{
+  "status": "ok",
+  "result": [
+    "viking://resources/docs/",
+    "viking://resources/README.md"
+  ],
+  "time": 0.05
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking ls viking://resources/ [--simple] [--recursive]
+```

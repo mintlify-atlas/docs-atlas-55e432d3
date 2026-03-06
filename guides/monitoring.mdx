@@ -1,0 +1,426 @@
+---
+title: Monitoring
+description: Health checks, system status monitoring, and observability for OpenViking
+---
+
+OpenViking Server provides comprehensive endpoints for monitoring system health and component status.
+
+## Health Check
+
+The `/health` endpoint provides a simple liveness check with no authentication required.
+
+<CodeGroup>
+```bash curl
+curl http://localhost:1933/health
+```
+
+```python Python
+import requests
+
+response = requests.get("http://localhost:1933/health")
+print(response.json())
+# {"status": "ok"}
+```
+</CodeGroup>
+
+**Response:**
+```json
+{"status": "ok"}
+```
+
+<Info>
+This endpoint is always accessible without authentication, making it ideal for load balancers and monitoring tools.
+</Info>
+
+## Readiness Check
+
+The `/ready` endpoint checks all system components before accepting traffic.
+
+```bash
+curl http://localhost:1933/ready
+```
+
+**Response:**
+```json
+{
+  "status": "ready",
+  "checks": {
+    "agfs": "ok",
+    "vectordb": "ok",
+    "api_key_manager": "ok"
+  }
+}
+```
+
+<Tip>
+Use `/health` for Kubernetes **liveness** probes and `/ready` for **readiness** probes.
+</Tip>
+
+## System Status
+
+Get comprehensive status of all components.
+
+### Overall System Health
+
+<Tabs>
+  <Tab title="Python SDK">
+    ```python
+    import openviking as ov
+    
+    client = ov.SyncOpenViking(path="./data")
+    client.initialize()
+    
+    # Get full status
+    status = client.get_status()
+    print(f"Healthy: {status['is_healthy']}")
+    print(f"Components: {status['components']}")
+    
+    # Quick health check
+    if client.is_healthy():
+        print("System OK")
+    else:
+        print(f"Errors: {status['errors']}")
+    ```
+  </Tab>
+  
+  <Tab title="HTTP Client">
+    ```python
+    import openviking as ov
+    
+    client = ov.SyncHTTPClient(
+        url="http://localhost:1933",
+        api_key="your-key"
+    )
+    
+    status = client.get_status()
+    print(f"Healthy: {status['is_healthy']}")
+    
+    for name, info in status['components'].items():
+        print(f"{name}: {info['is_healthy']}")
+    ```
+  </Tab>
+  
+  <Tab title="HTTP API">
+    ```bash
+    curl http://localhost:1933/api/v1/observer/system \
+      -H "X-API-Key: your-key"
+    ```
+  </Tab>
+</Tabs>
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "result": {
+    "is_healthy": true,
+    "errors": [],
+    "components": {
+      "queue": {
+        "name": "queue",
+        "is_healthy": true,
+        "has_errors": false
+      },
+      "vikingdb": {
+        "name": "vikingdb",
+        "is_healthy": true,
+        "has_errors": false
+      },
+      "vlm": {
+        "name": "vlm",
+        "is_healthy": true,
+        "has_errors": false
+      }
+    }
+  }
+}
+```
+
+## Component Status
+
+Check individual component health.
+
+### Queue Status
+
+Monitor the processing queue:
+
+<CodeGroup>
+```bash HTTP
+curl http://localhost:1933/api/v1/observer/queue \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+client = ov.SyncOpenViking(path="./data")
+client.initialize()
+
+queue_status = client.observer.queue
+print(f"Healthy: {queue_status['is_healthy']}")
+print(f"Queue size: {queue_status.get('queue_size', 0)}")
+```
+</CodeGroup>
+
+### VikingDB Status
+
+Check vector database health:
+
+<CodeGroup>
+```bash HTTP
+curl http://localhost:1933/api/v1/observer/vikingdb \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+vectordb_status = client.observer.vikingdb
+print(f"Healthy: {vectordb_status['is_healthy']}")
+```
+</CodeGroup>
+
+### VLM Status
+
+Monitor Vision Language Model health:
+
+<CodeGroup>
+```bash HTTP
+curl http://localhost:1933/api/v1/observer/vlm \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+vlm_status = client.observer.vlm
+print(f"Healthy: {vlm_status['is_healthy']}")
+print(f"Total calls: {vlm_status.get('total_calls', 0)}")
+```
+</CodeGroup>
+
+## Response Time Monitoring
+
+Every API response includes processing time in the `X-Process-Time` header.
+
+```bash
+curl -v http://localhost:1933/api/v1/fs/ls?uri=viking:// \
+  -H "X-API-Key: your-key" 2>&1 | grep X-Process-Time
+# < X-Process-Time: 0.0023
+```
+
+<Info>
+Time is measured in seconds and represents server-side processing time only.
+</Info>
+
+## Kubernetes Integration
+
+Configure health probes for Kubernetes deployments:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openviking
+spec:
+  template:
+    spec:
+      containers:
+      - name: openviking
+        image: ghcr.io/volcengine/openviking:main
+        ports:
+        - containerPort: 1933
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 1933
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 1933
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+```
+
+<Steps>
+  <Step title="Liveness Probe">
+    Uses `/health` to check if the container is alive. Kubernetes restarts the pod if this fails.
+  </Step>
+  
+  <Step title="Readiness Probe">
+    Uses `/ready` to check if the service is ready to accept traffic. Kubernetes removes the pod from service endpoints if this fails.
+  </Step>
+</Steps>
+
+## Monitoring Best Practices
+
+<AccordionGroup>
+<Accordion title="Set Up Alerts" icon="bell">
+Configure alerts for component health:
+
+```python
+import openviking as ov
+import time
+
+client = ov.SyncHTTPClient(url="http://localhost:1933", api_key="key")
+
+while True:
+    status = client.get_status()
+    
+    if not status['is_healthy']:
+        # Send alert
+        errors = status.get('errors', [])
+        print(f"ALERT: System unhealthy - {errors}")
+        
+    for name, info in status['components'].items():
+        if not info['is_healthy']:
+            print(f"ALERT: {name} unhealthy")
+    
+    time.sleep(60)  # Check every minute
+```
+</Accordion>
+
+<Accordion title="Monitor Processing Queue" icon="list-check">
+```python
+queue_status = client.observer.queue
+
+if queue_status.get('queue_size', 0) > 100:
+    print("WARNING: Queue backlog detected")
+```
+</Accordion>
+
+<Accordion title="Track Response Times" icon="clock">
+```python
+import httpx
+import time
+
+url = "http://localhost:1933/api/v1/fs/ls?uri=viking://"
+headers = {"X-API-Key": "your-key"}
+
+response = httpx.get(url, headers=headers)
+process_time = float(response.headers.get("X-Process-Time", 0))
+
+if process_time > 1.0:
+    print(f"WARNING: Slow response: {process_time}s")
+```
+</Accordion>
+
+<Accordion title="Log System Metrics" icon="chart-line">
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+status = client.get_status()
+logger.info(f"System health: {status['is_healthy']}")
+logger.info(f"Queue size: {client.observer.queue.get('queue_size', 0)}")
+logger.info(f"VLM calls: {client.observer.vlm.get('total_calls', 0)}")
+```
+</Accordion>
+</AccordionGroup>
+
+## Prometheus Integration
+
+While OpenViking doesn't expose Prometheus metrics directly, you can create a simple exporter:
+
+```python
+from prometheus_client import start_http_server, Gauge
+import openviking as ov
+import time
+
+# Define metrics
+system_health = Gauge('openviking_system_healthy', 'System health status')
+queue_size = Gauge('openviking_queue_size', 'Processing queue size')
+response_time = Gauge('openviking_response_time', 'API response time')
+
+client = ov.SyncHTTPClient(url="http://localhost:1933", api_key="key")
+
+def collect_metrics():
+    while True:
+        try:
+            # System health
+            status = client.get_status()
+            system_health.set(1 if status['is_healthy'] else 0)
+            
+            # Queue size
+            queue_status = client.observer.queue
+            queue_size.set(queue_status.get('queue_size', 0))
+            
+        except Exception as e:
+            print(f"Metrics collection error: {e}")
+        
+        time.sleep(15)
+
+if __name__ == '__main__':
+    start_http_server(8000)  # Prometheus metrics on :8000
+    collect_metrics()
+```
+
+Add to `prometheus.yml`:
+```yaml
+scrape_configs:
+  - job_name: 'openviking'
+    static_configs:
+      - targets: ['localhost:8000']
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Component Unhealthy" icon="triangle-exclamation">
+**Symptom:** `is_healthy: false` for a component
+
+**Solutions:**
+1. Check component logs
+2. Verify configuration (API keys, endpoints)
+3. Test network connectivity
+4. Restart the service
+
+```bash
+# Check detailed status
+curl http://localhost:1933/api/v1/observer/system \
+  -H "X-API-Key: key" | jq '.result'
+```
+</Accordion>
+
+<Accordion title="High Queue Size" icon="layer-group">
+**Symptom:** Processing queue grows without clearing
+
+**Solutions:**
+1. Increase embedding concurrency:
+   ```json
+   {"embedding": {"max_concurrent": 20}}
+   ```
+2. Check VLM rate limits
+3. Scale horizontally with more workers
+</Accordion>
+
+<Accordion title="Slow Response Times" icon="hourglass">
+**Symptom:** `X-Process-Time` > 1 second
+
+**Solutions:**
+1. Check vector database performance
+2. Optimize search parameters (limit, threshold)
+3. Use local storage for better latency
+4. Enable caching
+</Accordion>
+</AccordionGroup>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Server deployment and configuration
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    System configuration reference
+  </Card>
+  <Card title="Python SDK" icon="python" href="/guides/python-sdk">
+    Client health check methods
+  </Card>
+  <Card title="CLI Usage" icon="terminal" href="/guides/cli-usage">
+    CLI monitoring commands
+  </Card>
+</CardGroup>

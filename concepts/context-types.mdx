@@ -1,0 +1,405 @@
+---
+title: Context Types
+description: Understanding the three fundamental context types in OpenViking
+---
+
+Based on a simplified mapping of human cognitive patterns and engineering considerations, OpenViking abstracts context into **three basic types: Resource, Memory, and Skill**, each serving different purposes in Agent applications.
+
+## Overview
+
+<CardGroup cols={3}>
+  <Card title="Resource" icon="book">
+    External knowledge and rules
+    
+    - Long-term, static
+    - User adds
+  </Card>
+  <Card title="Memory" icon="brain">
+    Agent's cognition
+    
+    - Long-term, dynamic
+    - Agent records
+  </Card>
+  <Card title="Skill" icon="wrench">
+    Callable capabilities
+    
+    - Long-term, static
+    - Agent invokes
+  </Card>
+</CardGroup>
+
+| Type | Purpose | Lifecycle | Initiative |
+|------|---------|-----------|------------|
+| **Resource** | Knowledge and rules | Long-term, relatively static | User adds |
+| **Memory** | Agent's cognition | Long-term, dynamically updated | Agent records |
+| **Skill** | Callable capabilities | Long-term, static | Agent invokes |
+
+## Resource
+
+Resources are external knowledge that Agents can reference - such as documentation, code repositories, research papers, and product manuals.
+
+### Characteristics
+
+<AccordionGroup>
+  <Accordion title="User-driven">
+    Resource information actively added by users to supplement LLM knowledge, such as product manuals and code repositories.
+  </Accordion>
+  <Accordion title="Static content">
+    Content rarely changes after addition, usually modified by users rather than Agents.
+  </Accordion>
+  <Accordion title="Structured storage">
+    Organized by project or topic in directory hierarchy, with multi-layer information extraction (L0/L1/L2).
+  </Accordion>
+</AccordionGroup>
+
+### Examples
+
+- API documentation and product manuals
+- FAQ databases and code repositories
+- Research papers and technical specifications
+- Web pages and articles
+
+### Usage
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Add resource from URL
+await client.add_resource(
+    "https://docs.example.com/api.pdf",
+    reason="API documentation"
+)
+
+# Add resource from local file
+await client.add_resource(
+    "/path/to/project/",
+    reason="Project codebase"
+)
+
+# Search resources only
+results = await client.find(
+    "authentication methods",
+    target_uri="viking://resources/"
+)
+
+for ctx in results.resources:
+    print(f"URI: {ctx.uri}")
+    print(f"Abstract: {ctx.abstract}")
+```
+
+### Storage Structure
+
+```
+viking://resources/
+├── my_project/
+│   ├── .abstract.md          # L0: Project summary
+│   ├── .overview.md          # L1: Project overview
+│   ├── docs/
+│   │   ├── .abstract.md
+│   │   ├── .overview.md
+│   │   ├── api/
+│   │   │   ├── auth.md       # L2: Full documentation
+│   │   │   └── endpoints.md
+│   │   └── tutorials/
+│   └── src/
+│       ├── .abstract.md
+│       ├── .overview.md
+│       └── main.py
+└── another_project/
+```
+
+## Memory
+
+Memories are divided into **user memories** and **Agent memories**, representing learned knowledge about users and the world.
+
+### Characteristics
+
+<AccordionGroup>
+  <Accordion title="Agent-driven">
+    Memory information actively extracted and recorded by Agent from interactions.
+  </Accordion>
+  <Accordion title="Dynamic updates">
+    Continuously updated from interactions by Agent, reflecting learning and adaptation.
+  </Accordion>
+  <Accordion title="Personalized">
+    Learned for specific users or specific Agents, creating personalized experiences.
+  </Accordion>
+</AccordionGroup>
+
+### 6 Memory Categories
+
+<Note>
+OpenViking extracts memories into 6 categories, each with different update strategies:
+</Note>
+
+| Category | Location | Description | Update Strategy |
+|----------|----------|-------------|------------------|
+| **profile** | `user/memories/.overview.md` | User basic info and identity | ✅ Appendable |
+| **preferences** | `user/memories/preferences/` | User preferences by topic | ✅ Appendable |
+| **entities** | `user/memories/entities/` | Entity memories (people, projects) | ✅ Appendable |
+| **events** | `user/memories/events/` | Event records (decisions, milestones) | ❌ No update |
+| **cases** | `agent/memories/cases/` | Learned cases from interactions | ❌ No update |
+| **patterns** | `agent/memories/patterns/` | Reusable patterns and best practices | ❌ No update |
+
+### User Memories
+
+<Tabs>
+  <Tab title="Profile">
+    **User basic information and identity**
+    
+    Stored in `viking://user/{user_id}/.overview.md`
+    
+    Examples:
+    - Name, role, occupation
+    - Technical background
+    - Communication style
+    
+    **Update**: Appendable (can add new information)
+  </Tab>
+  
+  <Tab title="Preferences">
+    **User preferences organized by topic**
+    
+    Stored in `viking://user/{user_id}/memories/preferences/`
+    
+    Examples:
+    - Code style preferences (e.g., prefers TypeScript over JavaScript)
+    - Communication preferences (e.g., prefers concise responses)
+    - Domain interests (e.g., focuses on AI and distributed systems)
+    
+    **Update**: Appendable (can add preferences to same topic)
+  </Tab>
+  
+  <Tab title="Entities">
+    **Important entities in user's world**
+    
+    Stored in `viking://user/{user_id}/memories/entities/`
+    
+    Examples:
+    - Projects (e.g., OpenViking project details)
+    - People (e.g., colleague relationships)
+    - Concepts (e.g., technical concepts user is learning)
+    
+    **Update**: Appendable (can add information to same entity)
+  </Tab>
+  
+  <Tab title="Events">
+    **Historical events and decisions**
+    
+    Stored in `viking://user/{user_id}/memories/events/`
+    
+    Examples:
+    - Decided to refactor memory system
+    - Completed a major project
+    - Attended a conference
+    
+    **Update**: Immutable (historical record)
+  </Tab>
+</Tabs>
+
+### Agent Memories
+
+<Tabs>
+  <Tab title="Cases">
+    **Specific problems and solutions**
+    
+    Stored in `viking://agent/{agent_id}/memories/cases/`
+    
+    Examples:
+    - How to debug a specific error
+    - Solution to a particular API integration issue
+    - Workaround for a known limitation
+    
+    **Update**: Immutable (each case is independent)
+  </Tab>
+  
+  <Tab title="Patterns">
+    **Reusable patterns and best practices**
+    
+    Stored in `viking://agent/{agent_id}/memories/patterns/`
+    
+    Examples:
+    - General debugging workflow
+    - Code review checklist
+    - API design principles
+    
+    **Update**: Immutable (create new pattern if modification needed)
+  </Tab>
+</Tabs>
+
+### Usage
+
+```python
+# Memories are auto-extracted from sessions
+session = client.session(session_id="chat_001")
+
+await session.add_message(
+    "user",
+    [{"type": "text", "text": "I prefer dark mode in all UIs"}]
+)
+
+await session.add_message(
+    "assistant",
+    [{"type": "text", "text": "I'll remember your preference for dark mode."}]
+)
+
+# Commit extracts and stores preference memory
+result = await session.commit()
+print(f"Extracted {result['memories_extracted']} memories")
+
+# Search user memories
+results = await client.find(
+    "UI preferences",
+    target_uri="viking://user/memories/"
+)
+
+for ctx in results.memories:
+    print(f"Memory: {ctx.uri}")
+    print(f"Content: {ctx.abstract}")
+```
+
+## Skill
+
+Skills are capabilities that Agents can invoke, defined using the Claude Skills protocol format.
+
+### Characteristics
+
+<AccordionGroup>
+  <Accordion title="Defined capabilities">
+    Tool definitions for completing specific tasks, with clear input/output specifications.
+  </Accordion>
+  <Accordion title="Relatively static">
+    Skill definitions don't change at runtime, but usage memories related to tools are updated in memory.
+  </Accordion>
+  <Accordion title="Callable">
+    Agent decides when to use which skill based on task requirements.
+  </Accordion>
+</AccordionGroup>
+
+### Storage Location
+
+```
+viking://agent/{agent_id}/skills/{skill-name}/
+├── .abstract.md          # L0: Short description
+├── SKILL.md              # L1: Detailed overview
+└── scripts/              # L2: Full definition and scripts
+```
+
+### Usage
+
+```python
+# Add skill
+await client.add_skill({
+    "name": "search-web",
+    "description": "Search the web for information",
+    "content": """# search-web
+
+## Description
+Search the web using a search engine API.
+
+## Parameters
+- query: Search query string
+- max_results: Maximum number of results (default: 10)
+
+## Returns
+List of search results with title, URL, and snippet.
+"""
+})
+
+# Search skills
+results = await client.find(
+    "web search",
+    target_uri="viking://agent/skills/"
+)
+
+for ctx in results.skills:
+    print(f"Skill: {ctx.uri}")
+    print(f"Description: {ctx.abstract}")
+    
+    # Get full skill definition
+    overview = await client.overview(ctx.uri)
+    print(f"Full definition:\n{overview}")
+```
+
+## Unified Search
+
+<Note>
+OpenViking supports unified search across all three context types, providing comprehensive information based on Agent's needs.
+</Note>
+
+```python
+# Search across all context types
+results = await client.find("user authentication")
+
+print(f"Found {len(results.memories)} memories")
+for ctx in results.memories:
+    print(f"  Memory: {ctx.uri}")
+
+print(f"Found {len(results.resources)} resources")
+for ctx in results.resources:
+    print(f"  Resource: {ctx.uri}")
+
+print(f"Found {len(results.skills)} skills")
+for ctx in results.skills:
+    print(f"  Skill: {ctx.uri}")
+```
+
+## Context Type Implementation
+
+<CodeGroup>
+```python openviking/core/context.py
+class ContextType(str, Enum):
+    """Context type"""
+    
+    SKILL = "skill"
+    MEMORY = "memory"
+    RESOURCE = "resource"
+
+class Context:
+    def __init__(self, uri: str, ...):
+        self.uri = uri
+        self.context_type = context_type or self._derive_context_type()
+    
+    def _derive_context_type(self) -> str:
+        """Derive context type from URI using substring matching."""
+        if "/skills" in self.uri:
+            return "skill"
+        elif "/memories" in self.uri:
+            return "memory"
+        else:
+            return "resource"
+```
+
+```python openviking/core/directories.py
+def get_context_type_for_uri(uri: str) -> str:
+    """Determine context_type based on URI."""
+    if "/memories" in uri:
+        return ContextType.MEMORY.value
+    elif "/resources" in uri:
+        return ContextType.RESOURCE.value
+    elif "/skills" in uri:
+        return ContextType.SKILL.value
+    elif uri.startswith("viking://session"):
+        return ContextType.MEMORY.value
+    return ContextType.RESOURCE.value
+```
+</CodeGroup>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    System architecture and data flow
+  </Card>
+  <Card title="Context Layers" icon="layer-group" href="/concepts/context-layers">
+    L0/L1/L2 progressive loading model
+  </Card>
+  <Card title="Viking URI" icon="link" href="/concepts/viking-uri">
+    URI specification and structure
+  </Card>
+  <Card title="Session Management" icon="comments" href="/concepts/session">
+    Memory extraction mechanism
+  </Card>
+</CardGroup>

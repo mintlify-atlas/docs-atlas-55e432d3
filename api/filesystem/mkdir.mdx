@@ -1,0 +1,90 @@
+---
+title: "mkdir"
+description: "Create a directory"
+---
+
+Create a new directory at the specified Viking URI.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Create a new directory
+client.mkdir("viking://resources/new-project/")
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/fs/mkdir \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "uri": "viking://resources/new-project/"
+  }'
+```
+</CodeGroup>
+
+<RequestExample>
+```json
+POST /api/v1/fs/mkdir
+
+{
+  "uri": "viking://resources/new-project/"
+}
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField body="uri" type="string" required>
+  Viking URI for the new directory (must end with `/`)
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Result object containing the created directory URI
+  
+  <Expandable title="properties">
+    <ResponseField name="uri" type="string">
+      Viking URI of the created directory
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": {
+    "uri": "viking://resources/new-project/"
+  },
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking mkdir viking://resources/new-project/
+```
+
+## Notes
+
+- The URI should end with a trailing slash (`/`) to indicate it's a directory
+- Parent directories are created automatically if they don't exist
+- If the directory already exists, the operation succeeds without error

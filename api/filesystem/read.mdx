@@ -1,0 +1,100 @@
+---
+title: "read"
+description: "Read full file content (L2)"
+---
+
+Read the complete content of a file. This is the L2 (full content) layer in OpenViking's context hierarchy.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Read entire file
+content = client.read("viking://resources/docs/api.md")
+print(content)
+
+# Read with offset and limit
+partial = client.read("viking://resources/docs/api.md", offset=100, limit=500)
+print(partial)
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash Full Read
+curl -X GET "http://localhost:1933/api/v1/content/read?uri=viking://resources/docs/api.md" \
+  -H "X-API-Key: your-key"
+```
+
+```bash Partial Read
+curl -X GET "http://localhost:1933/api/v1/content/read?uri=viking://resources/docs/api.md&offset=100&limit=500" \
+  -H "X-API-Key: your-key"
+```
+</CodeGroup>
+
+<RequestExample>
+```http
+GET /api/v1/content/read?uri=viking://resources/docs/api.md
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  Viking URI of the file to read
+</ParamField>
+
+<ParamField path="offset" type="integer" default="0">
+  Byte offset to start reading from
+</ParamField>
+
+<ParamField path="limit" type="integer" default="-1">
+  Maximum number of bytes to read (`-1` for entire file)
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  The file content as a string
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": "# API Documentation\n\nThis document describes the API...\n\n## Authentication\n\n...",
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking read viking://resources/docs/api.md
+```
+
+## Context Layers
+
+OpenViking provides three levels of content access:
+
+- **L0 (Abstract)**: ~100 token summary via [`abstract()`](/api/filesystem/abstract)
+- **L1 (Overview)**: Structured overview via [`overview()`](/api/filesystem/overview)
+- **L2 (Full)**: Complete content via `read()` (this method)
+
+## Error Cases
+
+- Returns error if the URI points to a directory (use [`overview()`](/api/filesystem/overview) for directories)
+- Returns error if the file doesn't exist
+- For binary files, content may not be readable as text

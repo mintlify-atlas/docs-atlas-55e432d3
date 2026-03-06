@@ -1,0 +1,438 @@
+---
+title: "find()"
+description: "Fast semantic search without session context for quick lookups"
+---
+
+## Overview
+
+The `find()` method performs fast semantic search using vector similarity. It's optimized for simple queries where you don't need session context or intent analysis.
+
+**Key Differences from search():**
+- **No Intent Analysis**: Direct vector similarity search
+- **No Session Context**: Stateless, doesn't use conversation history
+- **Faster**: Lower latency due to simpler pipeline
+- **Simple Queries**: Best for straightforward lookup tasks
+
+## Basic Usage
+
+<CodeGroup>
+```python Python SDK
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Simple semantic search
+results = client.find("how to authenticate users")
+
+for ctx in results.resources:
+    print(f"URI: {ctx.uri}")
+    print(f"Score: {ctx.score:.3f}")
+    print(f"Type: {ctx.context_type}")
+    print(f"Abstract: {ctx.abstract[:100]}...")
+    print("---")
+```
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/search/find \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "query": "how to authenticate users",
+    "limit": 10
+  }'
+```
+
+```bash CLI
+openviking find "how to authenticate users" --limit 10
+```
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="query" type="string" required>
+  Search query string. Use natural language or specific keywords.
+</ParamField>
+
+<ParamField path="target_uri" type="string" default="">
+  Limit search to specific Viking URI prefix. Examples:
+  - `viking://resources/` - Search only resources
+  - `viking://user/memories/` - Search user memories
+  - `viking://skills/` - Search available skills
+  - `viking://resources/my-project/` - Search specific project
+</ParamField>
+
+<ParamField path="limit" type="integer" default="10">
+  Maximum number of results to return.
+</ParamField>
+
+<ParamField path="score_threshold" type="float" default="None">
+  Minimum relevance score (0-1). Filters out low-quality matches.
+</ParamField>
+
+<ParamField path="filter" type="Dict[str, Any]" default="None">
+  Additional metadata filters for constraining results.
+</ParamField>
+
+## Response Structure
+
+Returns a `FindResult` object:
+
+<ResponseField name="memories" type="List[MatchedContext]">
+  Matched memory contexts.
+</ResponseField>
+
+<ResponseField name="resources" type="List[MatchedContext]">
+  Matched resource contexts.
+</ResponseField>
+
+<ResponseField name="skills" type="List[MatchedContext]">
+  Matched skill contexts.
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total number of matches.
+</ResponseField>
+
+### MatchedContext Structure
+
+<ResponseField name="uri" type="string">
+  Viking URI of the matched context. May include level suffix:
+  - `.abstract.md` - L0 directory abstract
+  - `.overview.md` - L1 directory overview
+  - No suffix - L2 file content
+</ResponseField>
+
+<ResponseField name="context_type" type="ContextType">
+  Type: `memory`, `resource`, or `skill`.
+</ResponseField>
+
+<ResponseField name="level" type="integer">
+  Context layer:
+  - `0`: L0 (abstract)
+  - `1`: L1 (overview)
+  - `2`: L2 (content)
+</ResponseField>
+
+<ResponseField name="abstract" type="string">
+  L0 abstract - concise summary.
+</ResponseField>
+
+<ResponseField name="score" type="float">
+  Relevance score (0-1). Combines semantic similarity with hotness.
+</ResponseField>
+
+<ResponseField name="category" type="string">
+  Context category or classification.
+</ResponseField>
+
+<ResponseField name="relations" type="List[RelatedContext]">
+  Related contexts with URIs and abstracts.
+</ResponseField>
+
+## Examples
+
+### Basic Search
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Find authentication documentation
+results = client.find("authentication")
+
+for ctx in results.resources:
+    print(f"{ctx.uri} - {ctx.score:.3f}")
+```
+
+### Search with Target URI
+
+```python
+# Search only in resources
+results = client.find(
+    "authentication",
+    target_uri="viking://resources/"
+)
+
+# Search only in user memories
+results = client.find(
+    "preferences",
+    target_uri="viking://user/memories/"
+)
+
+# Search only in skills
+results = client.find(
+    "web search",
+    target_uri="viking://skills/"
+)
+
+# Search in specific project
+results = client.find(
+    "API endpoints",
+    target_uri="viking://resources/my-project/"
+)
+```
+
+### Search with Score Threshold
+
+```python
+# Only return high-confidence matches
+results = client.find(
+    "OAuth 2.0 implementation",
+    score_threshold=0.7,
+    limit=5
+)
+
+print(f"Found {results.total} high-quality matches")
+for ctx in results.resources:
+    print(f"  {ctx.uri} (score: {ctx.score:.3f})")
+```
+
+### Progressive Content Loading
+
+```python
+results = client.find("authentication")
+
+for ctx in results.resources:
+    # Start with L0 (abstract) - already in ctx.abstract
+    print(f"Abstract: {ctx.abstract}")
+    
+    if ctx.level == 0:  # Directory
+        # Get L1 (overview)
+        overview = client.overview(ctx.uri.rstrip('.abstract.md') + '/')
+        print(f"Overview: {overview[:500]}...")
+    elif ctx.level == 2:  # File
+        # Load L2 (full content)
+        content = client.read(ctx.uri)
+        print(f"Content: {content[:500]}...")
+```
+
+### HTTP API Example
+
+```bash
+curl -X POST http://localhost:1933/api/v1/search/find \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "query": "OAuth authentication",
+    "target_uri": "viking://resources/",
+    "limit": 5,
+    "score_threshold": 0.6
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "memories": [],
+    "resources": [
+      {
+        "uri": "viking://resources/docs/auth/.abstract.md",
+        "context_type": "resource",
+        "level": 0,
+        "abstract": "Authentication guide covering OAuth 2.0, JWT tokens, and session management.",
+        "score": 0.92,
+        "category": "documentation",
+        "relations": [
+          {
+            "uri": "viking://resources/examples/oauth/",
+            "abstract": "OAuth 2.0 implementation examples"
+          }
+        ]
+      },
+      {
+        "uri": "viking://resources/docs/auth/oauth.md",
+        "context_type": "resource",
+        "level": 2,
+        "abstract": "Detailed OAuth 2.0 authorization code flow implementation guide.",
+        "score": 0.88,
+        "category": "documentation",
+        "relations": []
+      }
+    ],
+    "skills": [],
+    "total": 2
+  },
+  "time": 0.08
+}
+```
+
+## Retrieval Strategy
+
+### Hierarchical Directory-Recursive Search
+
+OpenViking uses a unique **hierarchical retrieval** strategy:
+
+1. **Global Starting Points**
+   - Performs global vector search to identify relevant directories
+   - Uses context_type to determine root namespaces (resources, memories, skills)
+   - Merges global results with explicit target_uri directories
+
+2. **Recursive Directory Exploration**
+   - Starts from identified directories
+   - Searches children at each level using vector similarity
+   - Propagates scores from parent to child (weighted by `SCORE_PROPAGATION_ALPHA = 0.5`)
+   - Recurses into directories (L0/L1), treats files (L2) as terminal
+
+3. **Score Calculation**
+   ```
+   final_score = (1 - alpha) * semantic_score + alpha * hotness_score
+   
+   where:
+   - semantic_score: Vector similarity (with parent propagation)
+   - hotness_score: Based on active_count + recency (updated_at)
+   - alpha = 0.2 (HOTNESS_ALPHA)
+   ```
+
+4. **Convergence**
+   - Tracks top-k results across rounds
+   - Stops when top-k stabilizes for 3 consecutive rounds
+   - Deduplicates by URI (keeps highest score)
+
+### Vector Search Types
+
+- **Dense Vectors**: Semantic embeddings for meaning-based search
+- **Sparse Vectors**: Keyword-based sparse embeddings (if available)
+- **Hybrid**: Combines dense + sparse for best results
+
+### Context Layers
+
+Results can come from any layer:
+
+- **L0 (Abstract)**: Directory summaries - quick overviews
+- **L1 (Overview)**: Directory content summaries
+- **L2 (Content)**: Full file content - detailed information
+
+## When to Use find() vs search()
+
+| Scenario | Best Method |
+|----------|-------------|
+| Quick lookup | `find()` |
+| No conversation context | `find()` |
+| Need speed | `find()` |
+| Conversational search | `search()` |
+| Multi-turn dialogue | `search()` |
+| Complex intent | `search()` |
+
+## Working with Results
+
+### Iterating Over All Results
+
+```python
+results = client.find("authentication")
+
+# FindResult is iterable
+for ctx in results:
+    print(f"{ctx.context_type}: {ctx.uri}")
+
+# Or iterate by type
+for ctx in results.resources:
+    print(f"Resource: {ctx.uri}")
+for ctx in results.memories:
+    print(f"Memory: {ctx.uri}")
+```
+
+### Accessing Related Contexts
+
+```python
+results = client.find("OAuth implementation")
+
+for ctx in results.resources:
+    print(f"Found: {ctx.uri}")
+    
+    # Check related contexts
+    if ctx.relations:
+        print("  Related:")
+        for rel in ctx.relations:
+            print(f"    - {rel.uri}")
+            print(f"      {rel.abstract[:80]}...")
+```
+
+### Understanding Scores
+
+```python
+results = client.find("authentication", score_threshold=0.5)
+
+# Scores combine semantic similarity + hotness
+for ctx in results.resources:
+    print(f"URI: {ctx.uri}")
+    print(f"Score: {ctx.score:.3f}")
+    print(f"Level: L{ctx.level}")
+    
+    if ctx.score > 0.9:
+        print("  -> Highly relevant")
+    elif ctx.score > 0.7:
+        print("  -> Good match")
+    else:
+        print("  -> Moderate match")
+```
+
+## Best Practices
+
+1. **Use Specific Queries**: More specific queries yield better results
+   ```python
+   # Good - specific
+   results = client.find("OAuth 2.0 authorization code flow implementation")
+   
+   # Less effective - too broad
+   results = client.find("auth")
+   ```
+
+2. **Scope Your Search**: Use `target_uri` to search in relevant namespaces
+   ```python
+   results = client.find(
+       "error handling",
+       target_uri="viking://resources/backend/"
+   )
+   ```
+
+3. **Filter by Score**: Set thresholds to get quality matches
+   ```python
+   results = client.find(
+       "API design patterns",
+       score_threshold=0.6
+   )
+   ```
+
+4. **Progressive Loading**: Start with abstracts, load more as needed
+   ```python
+   results = client.find("authentication")
+   
+   # Examine abstracts first
+   for ctx in results.resources[:3]:
+       print(ctx.abstract)
+       
+   # Load full content only if needed
+   if results.resources:
+       best_match = results.resources[0]
+       if best_match.level == 2:  # It's a file
+           full_content = client.read(best_match.uri)
+   ```
+
+5. **Leverage Relations**: Follow related contexts for comprehensive information
+   ```python
+   results = client.find("OAuth setup")
+   
+   for ctx in results.resources:
+       # Check related resources
+       for rel in ctx.relations:
+           related_content = client.abstract(rel.uri)
+           print(f"Related: {related_content}")
+   ```
+
+## Performance
+
+- **Latency**: ~50-100ms for typical queries
+- **Scalability**: Handles millions of contexts efficiently
+- **Caching**: Embeddings are cached for repeated queries
+- **Convergence**: Usually converges in 2-3 directory levels
+
+## Related Methods
+
+- [search()](/api/retrieval/search) - Context-aware search with session support
+- [abstract()](/api/filesystem/abstract) - Read L0 abstracts
+- [overview()](/api/filesystem/overview) - Read L1 overviews
+- [read()](/api/filesystem/read) - Read L2 full content

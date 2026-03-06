@@ -1,0 +1,711 @@
+---
+title: Server Deployment
+description: Deploy OpenViking as a production HTTP service for AI Agents
+---
+
+## Overview
+
+OpenViking can be deployed as a standalone HTTP server, providing persistent, high-performance context support for your AI Agents. This enables:
+
+<CardGroup cols={2}>
+  <Card title="Centralized Context" icon="database">
+    Share context across multiple agents and applications
+  </Card>
+  <Card title="Production Ready" icon="shield-check">
+    Built on FastAPI and Uvicorn for high performance
+  </Card>
+  <Card title="Multi-client Support" icon="users">
+    Python SDK, Rust CLI, and REST API access
+  </Card>
+  <Card title="Scalable" icon="chart-line">
+    Deploy on cloud infrastructure for high availability
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+Before deploying OpenViking server, ensure you have:
+
+- OpenViking installed: `pip install openviking --upgrade`
+- Model configuration ready (VLM and embedding models)
+- Server configuration file at `~/.openviking/ov.conf`
+
+<Info>
+See the [Quick Start](/quickstart) guide for installation and configuration details.
+</Info>
+
+## Starting the Server
+
+### Basic Usage
+
+<Steps>
+  <Step title="Prepare Configuration">
+    Create your server configuration file at `~/.openviking/ov.conf`:
+    
+    ```json ~/.openviking/ov.conf
+    {
+      "storage": {
+        "workspace": "/home/your-name/openviking_workspace"
+      },
+      "log": {
+        "level": "INFO",
+        "output": "stdout"
+      },
+      "embedding": {
+        "dense": {
+          "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+          "api_key": "your-embedding-api-key",
+          "provider": "volcengine",
+          "dimension": 1024,
+          "model": "doubao-embedding-vision-250615"
+        },
+        "max_concurrent": 10
+      },
+      "vlm": {
+        "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+        "api_key": "your-vlm-api-key",
+        "provider": "volcengine",
+        "model": "doubao-seed-2-0-pro-260215",
+        "max_concurrent": 100
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Start the Server">
+    Launch OpenViking server:
+    
+    ```bash
+    # Use default config at ~/.openviking/ov.conf
+    openviking-server
+    
+    # Or specify custom config location
+    openviking-server --config /path/to/ov.conf
+    
+    # Override host and port
+    openviking-server --host 0.0.0.0 --port 8000
+    ```
+    
+    You should see:
+    ```
+    INFO:     Started server process [12345]
+    INFO:     Waiting for application startup.
+    INFO:     Application startup complete.
+    INFO:     Uvicorn running on http://0.0.0.0:1933 (Press CTRL+C to quit)
+    ```
+  </Step>
+  
+  <Step title="Verify Health">
+    Test that the server is running:
+    
+    ```bash
+    curl http://localhost:1933/health
+    ```
+    
+    Expected response:
+    ```json
+    {"status": "ok"}
+    ```
+  </Step>
+</Steps>
+
+### Running in Background
+
+For long-running deployments:
+
+<CodeGroup>
+```bash nohup
+# Run with nohup
+nohup openviking-server > /data/log/openviking.log 2>&1 &
+
+# Check process
+ps aux | grep openviking-server
+
+# View logs
+tail -f /data/log/openviking.log
+```
+
+```bash systemd
+# Create systemd service file
+sudo vim /etc/systemd/system/openviking.service
+
+# Add the following content:
+[Unit]
+Description=OpenViking Server
+After=network.target
+
+[Service]
+Type=simple
+User=your-username
+WorkingDirectory=/home/your-username
+Environment="OPENVIKING_CONFIG_FILE=/home/your-username/.openviking/ov.conf"
+ExecStart=/usr/local/bin/openviking-server
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable openviking
+sudo systemctl start openviking
+
+# Check status
+sudo systemctl status openviking
+```
+
+```bash screen/tmux
+# Using screen
+screen -S openviking
+openviking-server
+# Press Ctrl+A, then D to detach
+
+# Reattach later
+screen -r openviking
+
+# Using tmux
+tmux new -s openviking
+openviking-server
+# Press Ctrl+B, then D to detach
+
+# Reattach later
+tmux attach -t openviking
+```
+</CodeGroup>
+
+## Client Connections
+
+### Python SDK
+
+Connect to OpenViking server using the Python SDK:
+
+```python
+import openviking as ov
+
+# Connect to server
+client = ov.SyncHTTPClient(url="http://localhost:1933")
+
+try:
+    client.initialize()
+    
+    # Add a resource
+    result = client.add_resource(
+        path="https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md"
+    )
+    root_uri = result["root_uri"]
+    print(f"Resource added: {root_uri}")
+    
+    # Wait for processing
+    client.wait_processed()
+    
+    # Search
+    results = client.find("what is openviking", target_uri=root_uri)
+    for r in results.resources:
+        print(f"  {r.uri} (score: {r.score:.4f})")
+        
+finally:
+    client.close()
+```
+
+#### With Authentication
+
+If your server has authentication enabled:
+
+```python
+client = ov.SyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="your-api-key",
+    agent_id="my-agent"
+)
+```
+
+#### Async Client
+
+For async applications:
+
+```python
+import asyncio
+import openviking as ov
+
+async def main():
+    client = ov.AsyncHTTPClient(url="http://localhost:1933")
+    
+    try:
+        await client.initialize()
+        
+        # Add resource
+        result = await client.add_resource(
+            path="https://example.com/doc.md"
+        )
+        
+        # Search
+        results = await client.find("search query")
+        print(f"Found {results.total} results")
+        
+    finally:
+        await client.close()
+
+asyncio.run(main())
+```
+
+### Rust CLI
+
+Configure the Rust CLI to connect to your server:
+
+<Steps>
+  <Step title="Create CLI Configuration">
+    Create `~/.openviking/ovcli.conf`:
+    
+    ```json ~/.openviking/ovcli.conf
+    {
+      "url": "http://localhost:1933",
+      "timeout": 60.0,
+      "output": "table"
+    }
+    ```
+    
+    Or set environment variable:
+    ```bash
+    export OPENVIKING_CLI_CONFIG_FILE=~/.openviking/ovcli.conf
+    ```
+  </Step>
+  
+  <Step title="Use CLI Commands">
+    ```bash
+    # Check system health
+    ov status
+    
+    # Add a resource
+    ov add-resource https://github.com/volcengine/OpenViking
+    
+    # List resources
+    ov ls viking://resources/
+    
+    # Tree view
+    ov tree viking://resources/volcengine -L 2
+    
+    # Semantic search
+    ov find "what is openviking"
+    
+    # Text search within path
+    ov grep "openviking" --uri viking://resources/volcengine
+    ```
+  </Step>
+</Steps>
+
+### REST API
+
+Access OpenViking directly via HTTP:
+
+<CodeGroup>
+```bash Add Resource
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -d '{
+    "path": "https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md"
+  }'
+```
+
+```bash List Directory
+curl "http://localhost:1933/api/v1/fs/ls?uri=viking://resources/"
+```
+
+```bash Semantic Search
+curl -X POST http://localhost:1933/api/v1/search/find \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "what is openviking",
+    "limit": 10
+  }'
+```
+
+```bash Read Content
+curl "http://localhost:1933/api/v1/fs/read?uri=viking://resources/example.md"
+```
+
+```bash Get Abstract
+curl "http://localhost:1933/api/v1/content/abstract?uri=viking://resources/project/"
+```
+</CodeGroup>
+
+## Cloud Deployment: Volcengine ECS
+
+For production deployments, we recommend **Volcengine Elastic Compute Service (ECS)** with **veLinux** for optimal performance.
+
+### Instance Provisioning
+
+Recommended specifications for [Volcengine ECS Console](https://console.volcengine.com/ecs):
+
+| Component | Recommendation | Notes |
+|-----------|----------------|-------|
+| **Image** | veLinux 2.0 (CentOS Compatible) | Enable "Security Hardening" |
+| **Instance Type** | Compute Optimized c3a (2 vCPU, 4GiB+) | For basic inference and retrieval |
+| **Storage** | 256 GiB Data Disk | For vector data persistence |
+| **Networking** | Configure as needed | Open TCP 1933 (or custom port) |
+
+### Environment Setup
+
+<Steps>
+  <Step title="Mount Data Disk">
+    After instance creation, mount the data disk:
+    
+    ```bash
+    # Create mount point
+    mkdir -p /data
+    
+    # Configure auto-mount using UUID
+    cp /etc/fstab /etc/fstab.bak
+    DISK_UUID=$(blkid -s UUID -o value /dev/vdb)
+    
+    if [ -z "$DISK_UUID" ]; then
+        echo "ERROR: /dev/vdb UUID not found"
+    else
+        echo "UUID=${DISK_UUID} /data ext4 defaults,nofail 0 0" >> /etc/fstab
+        mount -a
+        echo "Mount successful. Current disk status:"
+        df -Th /data
+    fi
+    ```
+  </Step>
+  
+  <Step title="Install Dependencies">
+    ```bash
+    # Install system packages
+    yum install -y curl git tree
+    
+    # Install uv (fast Python package manager)
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    
+    # Configure environment
+    echo 'source $HOME/.cargo/env' >> ~/.bashrc
+    source ~/.bashrc
+    
+    # Verify installation
+    uv --version
+    ```
+  </Step>
+  
+  <Step title="Create Virtual Environment">
+    ```bash
+    # Create virtual environment on data disk
+    cd /data
+    uv venv ovenv --python 3.11
+    
+    # Activate environment
+    source /data/ovenv/bin/activate
+    
+    # Verify
+    echo "Python path: $(which python)"
+    echo "Python version: $(python --version)"
+    ```
+  </Step>
+  
+  <Step title="Install OpenViking">
+    ```bash
+    # Install within virtual environment
+    uv pip install openviking --upgrade
+    
+    # Verify installation
+    python -c "import openviking; print(openviking.__version__)"
+    ```
+  </Step>
+</Steps>
+
+### Server Configuration and Launch
+
+<Steps>
+  <Step title="Create Configuration Directory">
+    ```bash
+    mkdir -p ~/.openviking
+    ```
+  </Step>
+  
+  <Step title="Create Configuration File">
+    ```bash
+    vim ~/.openviking/ov.conf
+    ```
+    
+    Add your configuration (see Basic Usage section above for template).
+    
+    <Tip>
+    **Vim Quick Reference:**
+    - Press `i` to enter Insert mode
+    - Paste your configuration
+    - Press `Esc` then type `:wq` to save and exit
+    </Tip>
+  </Step>
+  
+  <Step title="Launch Server">
+    ```bash
+    # Activate environment
+    source /data/ovenv/bin/activate
+    
+    # Create log directory
+    mkdir -p /data/log/
+    
+    # Launch with nohup
+    nohup openviking-server > /data/log/openviking.log 2>&1 &
+    
+    # Check process
+    ps aux | grep openviking-server
+    ```
+    
+    <Info>
+    To stop the service:
+    ```bash
+    pkill openviking
+    pkill agfs
+    ```
+    </Info>
+  </Step>
+  
+  <Step title="Verify Server Status">
+    ```bash
+    # Check process
+    ps aux | grep openviking-server
+    
+    # View logs
+    tail -f /data/log/openviking.log
+    
+    # Test health endpoint
+    curl http://localhost:1933/health
+    ```
+  </Step>
+</Steps>
+
+### Production Testing
+
+<Steps>
+  <Step title="Configure Local Client">
+    On your local machine, create `~/.openviking/ovcli.conf`:
+    
+    ```json
+    {
+      "url": "http://YOUR-SERVER-IP:1933",
+      "timeout": 60.0,
+      "output": "table"
+    }
+    ```
+    
+    Replace `YOUR-SERVER-IP` with your ECS instance's public IP.
+  </Step>
+  
+  <Step title="System Health Check">
+    ```bash
+    # Check server status
+    ov status
+    ```
+  </Step>
+  
+  <Step title="Functional Testing">
+    ```bash
+    # Upload a test resource
+    ov add-resource https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md
+    
+    # List resources
+    ov ls viking://resources
+    
+    # Test retrieval
+    ov find "what is openviking"
+    
+    # Tree view
+    ov tree viking://resources/ -L 2
+    ```
+  </Step>
+</Steps>
+
+## Docker Deployment (Optional)
+
+For containerized deployments:
+
+```dockerfile Dockerfile
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install OpenViking
+RUN pip install openviking --upgrade
+
+# Create workspace directory
+RUN mkdir -p /data/openviking_workspace
+
+# Copy configuration
+COPY ov.conf /root/.openviking/ov.conf
+
+# Expose port
+EXPOSE 1933
+
+# Run server
+CMD ["openviking-server", "--host", "0.0.0.0", "--port", "1933"]
+```
+
+Build and run:
+
+```bash
+# Build image
+docker build -t openviking-server .
+
+# Run container
+docker run -d \
+  --name openviking \
+  -p 1933:1933 \
+  -v /path/to/data:/data/openviking_workspace \
+  openviking-server
+
+# Check logs
+docker logs -f openviking
+
+# Health check
+curl http://localhost:1933/health
+```
+
+## Configuration Options
+
+### Server Configuration Reference
+
+```json
+{
+  "storage": {
+    "workspace": "/path/to/workspace",  // Data storage location
+    "agfs": {
+      "port": 1833  // AGFS internal port (optional)
+    }
+  },
+  "log": {
+    "level": "INFO",      // DEBUG, INFO, WARNING, ERROR
+    "output": "stdout"    // stdout or file
+  },
+  "embedding": {
+    "dense": {
+      "provider": "volcengine",   // volcengine, openai, jina
+      "model": "model-name",
+      "api_key": "your-key",
+      "api_base": "endpoint-url",
+      "dimension": 1024,
+      "input": "multimodal"       // Optional: for vision models
+    },
+    "max_concurrent": 10
+  },
+  "vlm": {
+    "provider": "volcengine",     // volcengine, openai, litellm
+    "model": "model-name",
+    "api_key": "your-key",
+    "api_base": "endpoint-url",
+    "max_concurrent": 100,
+    "max_retries": 2
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|--------|
+| `OPENVIKING_CONFIG_FILE` | Path to server config file | `~/.openviking/ov.conf` |
+| `OPENVIKING_CLI_CONFIG_FILE` | Path to CLI config file | `~/.openviking/ovcli.conf` |
+
+## Monitoring and Maintenance
+
+### Health Monitoring
+
+```bash
+# Health endpoint
+curl http://localhost:1933/health
+
+# System status (via CLI)
+ov status
+
+# Observer API (detailed metrics)
+curl http://localhost:1933/api/v1/observer/system
+```
+
+### Log Management
+
+```bash
+# View real-time logs
+tail -f /data/log/openviking.log
+
+# Search logs
+grep "ERROR" /data/log/openviking.log
+
+# Rotate logs (recommended for production)
+# Add to /etc/logrotate.d/openviking
+/data/log/openviking.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
+```
+
+### Resource Management
+
+```bash
+# Check disk usage
+df -h /data
+
+# Check memory usage
+free -h
+
+# Monitor processes
+top -p $(pgrep -f openviking-server)
+```
+
+## Security Considerations
+
+<Warning>
+**Production Security Checklist:**
+
+- Configure firewall rules to restrict access
+- Use HTTPS with reverse proxy (nginx/caddy)
+- Enable API authentication
+- Regularly update OpenViking and dependencies
+- Monitor logs for suspicious activity
+- Backup workspace data regularly
+- Use environment variables for sensitive credentials
+</Warning>
+
+### Reverse Proxy Example (Nginx)
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name your-domain.com;
+    
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+    
+    location / {
+        proxy_pass http://localhost:1933;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Complete API documentation
+  </Card>
+  <Card title="Authentication" icon="lock" href="/guides/authentication">
+    Secure your OpenViking server
+  </Card>
+  <Card title="Monitoring" icon="chart-line" href="/guides/monitoring">
+    Monitor your production deployment
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/volcengine/OpenViking/tree/main/examples">
+    Production integration examples
+  </Card>
+</CardGroup>

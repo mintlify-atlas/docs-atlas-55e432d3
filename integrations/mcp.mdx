@@ -1,0 +1,486 @@
+---
+title: Model Context Protocol (MCP)
+description: Expose OpenViking RAG capabilities through MCP HTTP server for Claude and other AI clients
+icon: plug
+---
+
+The OpenViking MCP server provides [Model Context Protocol](https://modelcontextprotocol.io) tools for semantic search and RAG (Retrieval-Augmented Generation). Connect it to Claude Desktop, Claude CLI, or any MCP-compatible client.
+
+## Available Tools
+
+| Tool | Description | Use Case |
+|------|-------------|----------|
+| `query` | Full RAG pipeline (search + LLM answer) | Ask questions and get answers with sources |
+| `search` | Semantic search only | Find relevant documents without LLM generation |
+| `add_resource` | Add files/URLs to database | Ingest new content for indexing |
+
+## Quick Start
+
+<Steps>
+
+<Step title="Install Dependencies">
+```bash
+cd examples/mcp-query
+uv sync
+```
+</Step>
+
+<Step title="Configure OpenViking">
+Copy the example config:
+
+```bash
+cp ov.conf.example ov.conf
+```
+
+Edit `ov.conf` with your API keys:
+
+```json
+{
+  "embedding": {
+    "dense": {
+      "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+      "api_key": "<your-api-key>",
+      "provider": "volcengine",
+      "dimension": 1024,
+      "model": "doubao-embedding-vision-250615"
+    }
+  },
+  "vlm": {
+    "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+    "api_key": "<your-api-key>",
+    "provider": "volcengine",
+    "model": "doubao-seed-2-0-pro-260215"
+  }
+}
+```
+</Step>
+
+<Step title="Start the Server">
+```bash
+uv run server.py
+```
+
+The server starts on `http://127.0.0.1:2033/mcp` by default.
+</Step>
+
+<Step title="Connect from Claude">
+**Claude CLI:**
+```bash
+claude mcp add --transport http openviking http://localhost:2033/mcp
+```
+
+**Claude Desktop:** Add to `.mcp.json`:
+```json
+{
+  "mcpServers": {
+    "openviking": {
+      "type": "http",
+      "url": "http://localhost:2033/mcp"
+    }
+  }
+}
+```
+</Step>
+
+</Steps>
+
+## Tool Reference
+
+### query
+
+Ask questions and get answers using RAG.
+
+**Parameters:**
+
+```python
+query(
+    question: str,              # The question to ask
+    top_k: int = 5,            # Number of search results (1-20)
+    temperature: float = 0.7,   # LLM sampling temperature (0.0-1.0)
+    max_tokens: int = 2048,     # Max response tokens
+    score_threshold: float = 0.2, # Min relevance score (0.0-1.0)
+    system_prompt: str = ""     # Optional system prompt
+)
+```
+
+**Example usage in Claude:**
+
+```
+You: What are the key features of OpenViking?
+Claude: [Uses query tool]
+        OpenViking is a context database for AI agents with these key features:
+        
+        1. Filesystem Management Paradigm - Organizes memories, resources, and skills
+        2. Tiered Context Loading (L0/L1/L2) - Reduces token consumption
+        3. Directory Recursive Retrieval - Improves retrieval effectiveness
+        ...
+        
+        ---
+        Sources:
+          1. README.md (relevance: 0.9234)
+          2. concepts/filesystem.md (relevance: 0.8876)
+          3. getting-started.md (relevance: 0.8523)
+        
+        [search: 0.45s, llm: 1.23s, total: 1.68s]
+```
+
+**Response format:**
+
+```
+<answer text>
+
+---
+Sources:
+  1. <filename> (relevance: <score>)
+  2. <filename> (relevance: <score>)
+  ...
+
+[search: <time>s, llm: <time>s, total: <time>s]
+```
+
+### search
+
+Perform semantic search without LLM generation.
+
+**Parameters:**
+
+```python
+search(
+    query: str,                  # Search query
+    top_k: int = 5,             # Number of results (1-20)
+    score_threshold: float = 0.2, # Min relevance score (0.0-1.0)
+    target_uri: str = ""        # Optional URI to scope search
+)
+```
+
+**Example usage:**
+
+```
+You: Search for "memory extraction" in OpenViking docs
+Claude: [Uses search tool]
+        Found 3 results:
+        
+        [1] viking://resources/OpenViking/docs/concepts/memory.md (score: 0.9123)
+        Memory extraction is the process of analyzing conversation history
+        and identifying key facts, preferences, and decisions to store...
+        
+        [2] viking://resources/OpenViking/guides/memory-setup.md (score: 0.8567)
+        To configure memory extraction, set the following parameters in ov.conf...
+        
+        [3] viking://resources/OpenViking/examples/memory-plugin/README.md (score: 0.7891)
+        This example demonstrates how to use OpenViking's memory extraction...
+```
+
+### add_resource
+
+Add documents, directories, or URLs to the database.
+
+**Parameters:**
+
+```python
+add_resource(
+    resource_path: str  # Local file/directory path or URL
+)
+```
+
+**Supported formats:**
+- PDF, Markdown, Text, HTML
+- Local files and directories
+- URLs (auto-downloaded)
+- GitHub repositories (via URL)
+
+**Example usage:**
+
+```
+You: Add the FastAPI documentation to OpenViking
+Claude: [Uses add_resource tool with https://github.com/tiangolo/fastapi]
+        Resource added and indexed: viking://resources/fastapi
+        
+You: Now search for dependency injection in FastAPI
+Claude: [Uses search tool]
+        Found 5 results about dependency injection in FastAPI...
+```
+
+## Server Options
+
+```bash
+uv run server.py [OPTIONS]
+
+Options:
+  --config PATH       Config file path (default: ./ov.conf)
+                      Env: OV_CONFIG
+                      
+  --data PATH         Data directory path (default: ./data)
+                      Env: OV_DATA
+                      
+  --host HOST         Bind address (default: 127.0.0.1)
+  
+  --port PORT         Listen port (default: 2033)
+                      Env: OV_PORT
+                      
+  --transport TYPE    Transport type:
+                      - streamable-http (default)
+                      - stdio (for Claude Desktop)
+```
+
+### Examples
+
+```bash
+# Use custom config and port
+uv run server.py --config ~/my-config/ov.conf --port 9000
+
+# Use environment variables
+export OV_CONFIG=./ov.conf
+export OV_DATA=./my-data
+export OV_PORT=3000
+uv run server.py
+
+# Enable debug logging
+export OV_DEBUG=1
+uv run server.py
+
+# Use stdio transport (Claude Desktop)
+uv run server.py --transport stdio
+```
+
+## Testing with MCP Inspector
+
+The [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is a tool for testing MCP servers:
+
+```bash
+# Start your OpenViking MCP server
+uv run server.py
+
+# In another terminal, start the inspector
+npx @modelcontextprotocol/inspector
+
+# Connect to http://localhost:2033/mcp
+```
+
+You can then:
+- Browse available tools
+- Test tool invocations
+- Inspect request/response payloads
+- Debug server behavior
+
+## Production Deployment
+
+### Systemd Service (Linux)
+
+```ini /etc/systemd/system/openviking-mcp.service
+[Unit]
+Description=OpenViking MCP Server
+After=network.target
+
+[Service]
+Type=simple
+User=youruser
+WorkingDirectory=/path/to/OpenViking/examples/mcp-query
+Environment="OV_CONFIG=/etc/openviking/ov.conf"
+Environment="OV_DATA=/var/lib/openviking/data"
+ExecStart=/path/to/uv run server.py --host 0.0.0.0 --port 2033
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable openviking-mcp
+sudo systemctl start openviking-mcp
+sudo systemctl status openviking-mcp
+```
+
+### Docker
+
+```dockerfile Dockerfile
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN pip install uv
+
+COPY pyproject.toml uv.lock ./
+RUN uv sync
+
+COPY server.py ./
+COPY ov.conf ./
+
+EXPOSE 2033
+
+CMD ["uv", "run", "server.py", "--host", "0.0.0.0", "--port", "2033"]
+```
+
+```bash
+docker build -t openviking-mcp .
+docker run -d -p 2033:2033 \
+  -v /path/to/data:/app/data \
+  -v /path/to/ov.conf:/app/ov.conf \
+  openviking-mcp
+```
+
+### Reverse Proxy (Nginx)
+
+```nginx /etc/nginx/sites-available/openviking-mcp
+server {
+    listen 80;
+    server_name mcp.yourdomain.com;
+
+    location /mcp {
+        proxy_pass http://127.0.0.1:2033/mcp;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+## Security Considerations
+
+<Warning>
+The MCP server has **no built-in authentication**. For production:
+
+1. Use a reverse proxy with authentication (Nginx, Caddy)
+2. Restrict access via firewall rules
+3. Use HTTPS for external access
+4. Bind to `127.0.0.1` if only local access needed
+</Warning>
+
+### Add Basic Auth (Nginx)
+
+```nginx
+location /mcp {
+    auth_basic "OpenViking MCP";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+    
+    proxy_pass http://127.0.0.1:2033/mcp;
+    # ... rest of proxy config
+}
+```
+
+Generate password file:
+```bash
+sudo htpasswd -c /etc/nginx/.htpasswd username
+```
+
+## Resources
+
+The server exposes one resource:
+
+### openviking://status
+
+Get server status and configuration:
+
+```json
+{
+  "config_path": "./ov.conf",
+  "data_path": "./data",
+  "status": "running"
+}
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Server fails to start">
+Check the config file:
+
+```bash
+cat ov.conf
+```
+
+Verify API keys are set and valid. Test manually:
+```bash
+python3 -c "import openviking; print('ok')"
+```
+</Accordion>
+
+<Accordion title="Claude can't connect">
+Verify the server is running:
+
+```bash
+curl http://localhost:2033/mcp
+```
+
+Check the MCP config:
+```bash
+cat ~/.mcp.json  # Claude Desktop
+claude mcp list  # Claude CLI
+```
+</Accordion>
+
+<Accordion title="Search returns no results">
+Add content first:
+
+```bash
+# Via MCP tool
+Claude: Add https://github.com/owner/repo to OpenViking
+
+# Or via CLI
+ov add-resource https://github.com/owner/repo
+```
+
+Check indexing status:
+```bash
+ov observer queue
+```
+</Accordion>
+
+<Accordion title="Import errors">
+Reinstall dependencies:
+
+```bash
+rm -rf .venv uv.lock
+uv sync
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Advanced Configuration
+
+### Custom System Prompts
+
+Control LLM behavior via `system_prompt` parameter:
+
+```python
+query(
+    question="Explain dependency injection",
+    system_prompt="You are a Python expert. Answer in bullet points."
+)
+```
+
+### Scoped Search
+
+Limit search to specific resources:
+
+```python
+search(
+    query="authentication",
+    target_uri="viking://resources/fastapi"
+)
+```
+
+### Adjusting Relevance
+
+```python
+# Strict relevance (fewer, higher quality results)
+search(query="...", score_threshold=0.7, top_k=3)
+
+# Broad relevance (more results, lower quality)
+search(query="...", score_threshold=0.1, top_k=20)
+```
+
+## See Also
+
+- [Model Context Protocol Spec](https://modelcontextprotocol.io)
+- [MCP Inspector](https://github.com/modelcontextprotocol/inspector)
+- [Semantic Search](/core-concepts/semantic-search)
+- [RAG Pipeline](/guides/rag-pipeline)

@@ -1,0 +1,152 @@
+---
+title: "grep"
+description: "Search content by pattern"
+---
+
+Search for content matching a regular expression pattern within files.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Search for a pattern
+results = client.grep(
+    "viking://resources/",
+    "authentication",
+    case_insensitive=True
+)
+
+print(f"Found {results['count']} matches")
+for match in results['matches']:
+    print(f"  {match['uri']}:{match['line']}")
+    print(f"    {match['content']}")
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/search/grep \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "uri": "viking://resources/",
+    "pattern": "authentication",
+    "case_insensitive": true
+  }'
+```
+</CodeGroup>
+
+<RequestExample>
+```json
+POST /api/v1/search/grep
+
+{
+  "uri": "viking://resources/",
+  "pattern": "authentication",
+  "case_insensitive": true
+}
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField body="uri" type="string" required>
+  Viking URI to search in (file or directory)
+</ParamField>
+
+<ParamField body="pattern" type="string" required>
+  Regular expression pattern to search for
+</ParamField>
+
+<ParamField body="case_insensitive" type="boolean" default="false">
+  Ignore case when matching
+</ParamField>
+
+<ParamField body="node_limit" type="integer" optional>
+  Maximum number of files to search
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Search results
+  
+  <Expandable title="properties">
+    <ResponseField name="matches" type="array">
+      Array of match objects
+      
+      <Expandable title="match object">
+        <ResponseField name="uri" type="string">
+          Viking URI of the file containing the match
+        </ResponseField>
+        <ResponseField name="line" type="integer">
+          Line number (1-based)
+        </ResponseField>
+        <ResponseField name="content" type="string">
+          The matching line content
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="count" type="integer">
+      Total number of matches found
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": {
+    "matches": [
+      {
+        "uri": "viking://resources/docs/auth.md",
+        "line": 15,
+        "content": "User authentication is handled by the AuthService class."
+      },
+      {
+        "uri": "viking://resources/docs/api.md",
+        "line": 42,
+        "content": "All API endpoints require authentication via bearer token."
+      }
+    ],
+    "count": 2
+  },
+  "time": 0.3
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking grep viking://resources/ "authentication" [--ignore-case]
+```
+
+## Pattern Syntax
+
+The `pattern` parameter accepts standard regular expressions:
+
+- `authentication` - Literal string match
+- `auth.*token` - Match "auth" followed by any characters, then "token"
+- `^import` - Match lines starting with "import"
+- `TODO|FIXME` - Match lines containing either "TODO" or "FIXME"
+
+## Performance Notes
+
+- Searching large directories may take time
+- Use `node_limit` to restrict the number of files searched
+- Directories are searched recursively by default

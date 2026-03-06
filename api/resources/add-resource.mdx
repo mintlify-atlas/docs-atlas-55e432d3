@@ -1,0 +1,311 @@
+---
+title: "add_resource"
+description: "Add resources to the OpenViking knowledge base"
+---
+
+## Overview
+
+Add files, directories, URLs, or GitHub repositories to OpenViking's knowledge base. Resources are parsed, indexed, and made available for semantic search.
+
+## Supported Resource Types
+
+<CardGroup cols={3}>
+  <Card title="Files" icon="file">
+    Local files: PDF, Markdown, HTML, code, images, videos, audio
+  </Card>
+  <Card title="Directories" icon="folder">
+    Recursively process entire directory trees
+  </Card>
+  <Card title="URLs" icon="globe">
+    Fetch and process content from web URLs
+  </Card>
+</CardGroup>
+
+## Method Signature
+
+<CodeGroup>
+```python Python SDK
+client.add_resource(
+    path: str,
+    target: Optional[str] = None,
+    reason: str = "",
+    instruction: str = "",
+    wait: bool = False,
+    timeout: Optional[float] = None,
+    build_index: bool = True,
+    summarize: bool = False,
+    **kwargs
+) -> Dict[str, Any]
+```
+
+```bash HTTP API
+POST /api/v1/resources
+```
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="path" type="string" required>
+  Local file path, directory path, or URL to add
+</ParamField>
+
+<ParamField path="target" type="string">
+  Target Viking URI (must be in `viking://resources/` scope). If not provided, automatically determined from path.
+</ParamField>
+
+<ParamField path="reason" type="string" default="">
+  Why this resource is being added. Improves search relevance and retrieval quality.
+</ParamField>
+
+<ParamField path="instruction" type="string" default="">
+  Special processing instructions for the parser
+</ParamField>
+
+<ParamField path="wait" type="boolean" default="false">
+  Wait for semantic processing (L0/L1 generation) and vectorization to complete before returning
+</ParamField>
+
+<ParamField path="timeout" type="float">
+  Timeout in seconds when `wait=True`
+</ParamField>
+
+<ParamField path="build_index" type="boolean" default="true">
+  Whether to build vector index immediately
+</ParamField>
+
+<ParamField path="summarize" type="boolean" default="false">
+  Whether to generate L0/L1 summaries
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Strict parsing mode (fail on errors vs. continue with warnings)
+</ParamField>
+
+<ParamField path="ignore_dirs" type="string">
+  Comma-separated list of directory names to ignore (e.g., "node_modules,.git")
+</ParamField>
+
+<ParamField path="include" type="string">
+  Glob pattern for files to include (e.g., "*.md,*.txt")
+</ParamField>
+
+<ParamField path="exclude" type="string">
+  Glob pattern for files to exclude (e.g., "*.log,*.tmp")
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Either "success" or "error"
+</ResponseField>
+
+<ResponseField name="root_uri" type="string" required>
+  Viking URI where the resource was added (e.g., `viking://resources/docs/guide.md`)
+</ResponseField>
+
+<ResponseField name="source_path" type="string" required>
+  Original source path provided
+</ResponseField>
+
+<ResponseField name="errors" type="array">
+  List of errors encountered during processing (if any)
+</ResponseField>
+
+<ResponseField name="queue_status" type="object">
+  Queue processing status (only present when `wait=True`)
+  <Expandable title="queue_status properties">
+    <ResponseField name="processed" type="integer">
+      Number of items processed
+    </ResponseField>
+    <ResponseField name="error_count" type="integer">
+      Number of errors encountered
+    </ResponseField>
+    <ResponseField name="errors" type="array">
+      List of error messages
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+### Add Local File
+
+<CodeGroup>
+```python Python SDK
+import openviking as ov
+
+client = ov.OpenViking(path="./data")
+client.initialize()
+
+result = client.add_resource(
+    "./documents/guide.md",
+    reason="User guide documentation"
+)
+print(f"Added: {result['root_uri']}")
+
+client.wait_processed()
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "path": "./documents/guide.md",
+    "reason": "User guide documentation"
+  }'
+```
+
+```bash CLI
+openviking add-resource ./documents/guide.md --reason "User guide documentation"
+```
+</CodeGroup>
+
+<ResponseExample>
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "status": "success",
+    "root_uri": "viking://resources/documents/guide.md",
+    "source_path": "./documents/guide.md",
+    "errors": []
+  },
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+### Add from URL
+
+<CodeGroup>
+```python Python SDK
+result = client.add_resource(
+    "https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md",
+    target="viking://resources/external/",
+    reason="External API documentation"
+)
+client.wait_processed()
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "path": "https://example.com/api-docs.md",
+    "target": "viking://resources/external/",
+    "reason": "External API documentation",
+    "wait": true
+  }'
+```
+
+```bash CLI
+openviking add-resource https://example.com/api-docs.md \
+  --to viking://resources/external/ \
+  --reason "External API documentation"
+```
+</CodeGroup>
+
+### Add Directory with Filters
+
+<CodeGroup>
+```python Python SDK
+result = client.add_resource(
+    "./my-project",
+    reason="Project source code",
+    ignore_dirs="node_modules,.git,dist",
+    include="*.py,*.md,*.json",
+    exclude="*.pyc,*.log"
+)
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "path": "./my-project",
+    "reason": "Project source code",
+    "ignore_dirs": "node_modules,.git,dist",
+    "include": "*.py,*.md,*.json",
+    "exclude": "*.pyc,*.log"
+  }'
+```
+</CodeGroup>
+
+### Wait for Processing
+
+<CodeGroup>
+```python Python SDK
+# Option 1: Wait inline
+result = client.add_resource(
+    "./documents/guide.md",
+    wait=True,
+    timeout=60.0
+)
+print(f"Queue status: {result['queue_status']}")
+
+# Option 2: Add multiple resources, then wait
+client.add_resource("./file1.md")
+client.add_resource("./file2.md")
+client.add_resource("./file3.md")
+
+status = client.wait_processed()
+print(f"All processed: {status}")
+```
+
+```bash HTTP API
+# Wait inline
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{"path": "./documents/guide.md", "wait": true}'
+
+# Wait separately after batch
+curl -X POST http://localhost:1933/api/v1/system/wait \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{}'
+```
+</CodeGroup>
+
+## Processing Pipeline
+
+When you add a resource, OpenViking processes it through multiple stages:
+
+```
+Input -> Parser -> TreeBuilder -> AGFS -> SemanticQueue -> Vector Index
+```
+
+1. **Parser**: Extracts content based on file type
+2. **TreeBuilder**: Creates directory structure
+3. **AGFS**: Stores files in the Agentic File System
+4. **SemanticQueue**: Generates L0 (abstract) and L1 (overview) asynchronously
+5. **Vector Index**: Indexes content for semantic search
+
+<Note>
+  Use `wait=True` or call `wait_processed()` to ensure semantic processing completes before querying.
+</Note>
+
+## Supported File Formats
+
+| Format | Extensions | Processing |
+|--------|------------|------------|
+| PDF | `.pdf` | Text and image extraction |
+| Markdown | `.md` | Native support |
+| HTML | `.html`, `.htm` | Cleaned text extraction |
+| Plain Text | `.txt` | Direct import |
+| JSON/YAML | `.json`, `.yaml`, `.yml` | Structured parsing |
+| Code | `.py`, `.js`, `.ts`, `.go`, `.java`, etc. | Syntax-aware parsing |
+| Images | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp` | VLM description |
+| Video | `.mp4`, `.mov`, `.avi` | Frame extraction + VLM |
+| Audio | `.mp3`, `.wav`, `.m4a` | Transcription |
+| Documents | `.docx` | Text extraction |
+
+## Related Methods
+
+- [wait_processed](/api/resources/wait-processed) - Wait for async processing to complete
+- [add_skill](/api/resources/add-skill) - Add skills instead of resources
+- [ls](/api/filesystem/ls) - List added resources
+- [find](/api/retrieval/find) - Search resources

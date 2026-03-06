@@ -1,0 +1,477 @@
+---
+title: Viking URI
+description: Unified resource identifier for all content in OpenViking
+---
+
+**Viking URI** is the unified resource identifier for all content in OpenViking. It provides a filesystem-like abstraction that allows Agents to navigate, browse, and manipulate context through deterministic paths and standard filesystem commands.
+
+## URI Format
+
+All resources in OpenViking are identified using the `viking://` scheme:
+
+```
+viking://{scope}/{path}
+```
+
+<ParamField path="scheme" type="string" required>
+  Always `viking` - identifies this as an OpenViking resource
+</ParamField>
+
+<ParamField path="scope" type="string" required>
+  Top-level namespace: `resources`, `user`, `agent`, `session`, `queue`, or `temp`
+</ParamField>
+
+<ParamField path="path" type="string">
+  Resource path within the scope, following filesystem conventions
+</ParamField>
+
+### Examples
+
+```bash
+viking://resources/my-project/docs/api.md
+viking://user/{user_id}/memories/preferences/coding
+viking://agent/{agent_id}/skills/search-web
+viking://session/{session_id}/messages.jsonl
+```
+
+## Scopes
+
+OpenViking organizes all content into six top-level scopes, each with different lifecycle and visibility characteristics:
+
+<Tabs>
+  <Tab title="resources">
+    **Independent resources and knowledge**
+    
+    - **Lifecycle**: Long-term persistent
+    - **Visibility**: Global (can be shared across users/agents)
+    - **Content**: Documentation, code repositories, articles, research papers
+    
+    Examples:
+    ```
+    viking://resources/openviking-docs/
+    viking://resources/my-project/src/
+    viking://resources/research-papers/
+    ```
+  </Tab>
+  
+  <Tab title="user">
+    **User-level data and memories**
+    
+    - **Lifecycle**: Long-term persistent
+    - **Visibility**: Per-user (isolated by user_id)
+    - **Content**: User profile, preferences, entities, events
+    
+    Examples:
+    ```
+    viking://user/{user_id}/
+    viking://user/{user_id}/memories/preferences/
+    viking://user/{user_id}/memories/entities/
+    ```
+  </Tab>
+  
+  <Tab title="agent">
+    **Agent-level data and capabilities**
+    
+    - **Lifecycle**: Long-term persistent
+    - **Visibility**: Per-agent (isolated by agent_id)
+    - **Content**: Skills, learning memories (cases/patterns), instructions
+    
+    Examples:
+    ```
+    viking://agent/{agent_id}/skills/
+    viking://agent/{agent_id}/memories/cases/
+    viking://agent/{agent_id}/instructions/
+    ```
+  </Tab>
+  
+  <Tab title="session">
+    **Session-level conversation data**
+    
+    - **Lifecycle**: Session lifetime (can be archived)
+    - **Visibility**: Current session only
+    - **Content**: Messages, tool calls, archived history
+    
+    Examples:
+    ```
+    viking://session/{session_id}/messages.jsonl
+    viking://session/{session_id}/history/archive_001/
+    viking://session/{session_id}/tools/
+    ```
+  </Tab>
+  
+  <Tab title="queue">
+    **Processing queue for async operations**
+    
+    - **Lifecycle**: Temporary (during processing)
+    - **Visibility**: Internal system use
+    - **Content**: Semantic processing queue, embedding queue
+    
+    Examples:
+    ```
+    viking://queue/semantic/
+    viking://queue/embedding/
+    ```
+  </Tab>
+  
+  <Tab title="temp">
+    **Temporary files during parsing**
+    
+    - **Lifecycle**: Temporary (deleted after processing)
+    - **Visibility**: Internal system use
+    - **Content**: Parsed documents before finalization
+    
+    Examples:
+    ```
+    viking://temp/abc123/
+    ```
+  </Tab>
+</Tabs>
+
+## Directory Structure
+
+<Note>
+Moving away from traditional flat database thinking, OpenViking organizes all context as a filesystem. Agents can locate and browse data through deterministic paths and standard filesystem commands.
+</Note>
+
+### Complete Structure
+
+```
+viking://
+├── session/{user_space}/{session_id}/
+│   ├── .abstract.md          # L0: Session summary
+│   ├── .overview.md          # L1: Session overview
+│   ├── .meta.json            # Session metadata
+│   ├── messages.jsonl        # Structured messages
+│   ├── history/              # Archived conversations
+│   │   ├── archive_001/
+│   │   └── archive_002/
+│   ├── tools/                # Tool executions
+│   └── .relations.json       # Relations table
+│
+├── user/{user_space}/
+│   ├── .abstract.md          # L0: User summary
+│   ├── .overview.md          # L1: User profile
+│   └── memories/             # User memory storage
+│       ├── .overview.md      # Profile (appendable)
+│       ├── preferences/      # By topic
+│       │   ├── coding/
+│       │   └── communication/
+│       ├── entities/         # People, projects, concepts
+│       │   ├── project_openviking/
+│       │   └── colleague_alice/
+│       └── events/           # Historical events
+│           ├── 2024-01-15_decided_refactor/
+│           └── 2024-02-20_completed_feature/
+│
+├── agent/{agent_space}/
+│   ├── .abstract.md          # L0: Agent summary
+│   ├── .overview.md          # L1: Agent overview
+│   ├── memories/             # Agent learning memories
+│   │   ├── cases/            # Specific cases
+│   │   │   ├── debug_api_error/
+│   │   │   └── fix_import_issue/
+│   │   └── patterns/         # Reusable patterns
+│   │       ├── debugging_workflow/
+│   │       └── code_review_checklist/
+│   ├── instructions/         # Agent directives
+│   └── skills/               # Skill definitions
+│       ├── search-web/
+│       │   ├── .abstract.md
+│       │   ├── SKILL.md
+│       │   └── scripts/
+│       └── analyze-code/
+│
+└── resources/{project}/   # Resource workspace
+    ├── .abstract.md
+    ├── .overview.md
+    ├── docs/
+    │   ├── api/
+    │   └── tutorials/
+    └── src/
+```
+
+## URI Operations
+
+### Parsing URIs
+
+```python
+from openviking_cli.utils.uri import VikingURI
+
+# Parse URI
+uri = VikingURI("viking://resources/docs/api")
+
+print(uri.scope)      # "resources"
+print(uri.full_path)  # "resources/docs/api"
+print(uri.path)       # "docs/api"
+print(uri.uri)        # "viking://resources/docs/api"
+```
+
+### Building URIs
+
+```python
+# Join paths
+base = "viking://resources/docs/"
+full = VikingURI(base).join("api.md").uri
+print(full)  # "viking://resources/docs/api.md"
+
+# Get parent directory
+uri = "viking://resources/docs/api.md"
+parent = VikingURI(uri).parent.uri
+print(parent)  # "viking://resources/docs"
+
+# Check if directory (trailing slash)
+uri = VikingURI("viking://resources/docs/")
+print(uri.is_directory())  # True
+```
+
+## API Usage
+
+### Targeting Specific Scopes
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Search only in resources
+results = await client.find(
+    "authentication methods",
+    target_uri="viking://resources/"
+)
+
+# Search only in user memories
+results = await client.find(
+    "coding preferences",
+    target_uri="viking://user/memories/"
+)
+
+# Search only in skills
+results = await client.find(
+    "web search capability",
+    target_uri="viking://agent/skills/"
+)
+
+# Search across all scopes (default)
+results = await client.find("authentication")
+```
+
+### Filesystem Operations
+
+```python
+# List directory contents
+entries = await client.ls("viking://resources/")
+for entry in entries:
+    print(f"{entry.name} - {'DIR' if entry.is_dir else 'FILE'}")
+
+# Read file content (L2)
+content = await client.read("viking://resources/docs/api.md")
+print(content)
+
+# Get abstract (L0)
+abstract = await client.abstract("viking://resources/docs/")
+print(abstract)
+
+# Get overview (L1)
+overview = await client.overview("viking://resources/docs/")
+print(overview)
+
+# Create directory
+await client.mkdir("viking://resources/new-project/")
+
+# Remove file or directory
+await client.rm("viking://resources/old-project/", recursive=True)
+
+# Move/rename
+await client.mv(
+    "viking://resources/docs/old-name.md",
+    "viking://resources/docs/new-name.md"
+)
+```
+
+### Tree Traversal
+
+```python
+# Show directory tree
+tree = await client.tree("viking://resources/my-project/", max_depth=2)
+print(tree)
+
+# Output:
+# viking://resources/my-project/
+# ├── docs/
+# │   ├── api/
+# │   └── tutorials/
+# └── src/
+#     ├── main.py
+#     └── utils/
+```
+
+## Special Files
+
+<Warning>
+Each directory may contain special system-managed files. Do not manually edit these files.
+</Warning>
+
+| File | Purpose | Layer |
+|------|---------|-------|
+| `.abstract.md` | L0 abstract (~100 tokens) | Auto-generated |
+| `.overview.md` | L1 overview (~2k tokens) | Auto-generated |
+| `.relations.json` | Related resources | System-managed |
+| `.meta.json` | Metadata (timestamps, etc.) | System-managed |
+
+### Example: Relations File
+
+```json
+{
+  "relations": [
+    {
+      "uri": "viking://resources/docs/security",
+      "reason": "Related security documentation",
+      "created_at": "2024-01-15T10:30:00Z"
+    },
+    {
+      "uri": "viking://resources/examples/auth-flow",
+      "reason": "Example implementation",
+      "created_at": "2024-01-15T10:35:00Z"
+    }
+  ]
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use trailing slash for directories">
+    Always include trailing slash when referring to directories:
+    
+    ```python
+    # Correct - directory
+    "viking://resources/docs/"
+    
+    # Correct - file
+    "viking://resources/docs/api.md"
+    
+    # Incorrect - ambiguous
+    "viking://resources/docs"
+    ```
+  </Accordion>
+  
+  <Accordion title="Scope-specific operations">
+    Add resources to appropriate scopes:
+    
+    ```python
+    # Resources go to resources scope
+    await client.add_resource(
+        url="https://docs.example.com",
+        target="viking://resources/project/"
+    )
+    
+    # Skills go to agent scope (automatic)
+    await client.add_skill(skill_definition)
+    # → Stored at viking://agent/{agent_id}/skills/{skill_name}/
+    ```
+  </Accordion>
+  
+  <Accordion title="Use meaningful path hierarchies">
+    Organize resources with clear, hierarchical paths:
+    
+    ```python
+    # Good - clear hierarchy
+    viking://resources/openviking/docs/concepts/architecture.md
+    viking://resources/openviking/docs/api/search.md
+    viking://resources/openviking/examples/basic-usage.py
+    
+    # Bad - flat structure
+    viking://resources/openviking/architecture.md
+    viking://resources/openviking/search.md
+    viking://resources/openviking/example1.py
+    ```
+  </Accordion>
+  
+  <Accordion title="Leverage URI patterns for filtering">
+    Use URI patterns to filter search results:
+    
+    ```python
+    # Search within specific project
+    results = await client.find(
+        "configuration",
+        target_uri="viking://resources/my-project/"
+    )
+    
+    # Search only user preferences
+    results = await client.find(
+        "code style",
+        target_uri="viking://user/memories/preferences/"
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Implementation Example
+
+<CodeGroup>
+```python VikingURI Class
+from openviking_cli.utils.uri import VikingURI
+
+class VikingURI:
+    """Viking URI parser and builder."""
+    
+    SCHEME = "viking://"
+    
+    def __init__(self, uri: str):
+        if not uri.startswith(self.SCHEME):
+            raise ValueError(f"Invalid viking URI: {uri}")
+        
+        path = uri[len(self.SCHEME):]
+        parts = path.split("/", 1)
+        
+        self.scope = parts[0] if parts else ""
+        self.path = parts[1] if len(parts) > 1 else ""
+        self.full_path = path
+    
+    @property
+    def uri(self) -> str:
+        return f"{self.SCHEME}{self.full_path}"
+    
+    @property
+    def parent(self) -> "VikingURI":
+        parent_path = "/".join(self.full_path.rstrip("/").split("/")[:-1])
+        return VikingURI(f"{self.SCHEME}{parent_path}")
+    
+    def join(self, path: str) -> "VikingURI":
+        joined = f"{self.full_path.rstrip('/')}/{path.lstrip('/')}"
+        return VikingURI(f"{self.SCHEME}{joined}")
+```
+
+```python Usage Example
+# Parse URI
+uri = VikingURI("viking://resources/docs/api/auth.md")
+print(f"Scope: {uri.scope}")        # resources
+print(f"Path: {uri.path}")          # docs/api/auth.md
+print(f"Full: {uri.full_path}")     # resources/docs/api/auth.md
+
+# Get parent
+parent = uri.parent
+print(parent.uri)  # viking://resources/docs/api
+
+# Join paths
+sibling = parent.join("jwt.md")
+print(sibling.uri)  # viking://resources/docs/api/jwt.md
+```
+</CodeGroup>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="diagram-project" href="/concepts/architecture">
+    System architecture and components
+  </Card>
+  <Card title="Context Types" icon="shapes" href="/concepts/context-types">
+    Resource, Memory, and Skill types
+  </Card>
+  <Card title="Context Layers" icon="layer-group" href="/concepts/context-layers">
+    L0/L1/L2 progressive loading
+  </Card>
+  <Card title="Storage" icon="database" href="/concepts/storage">
+    VikingFS and AGFS implementation
+  </Card>
+</CardGroup>

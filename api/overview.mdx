@@ -1,0 +1,463 @@
+---
+title: 'API Overview'
+description: 'Overview of the OpenViking Python SDK and HTTP API'
+---
+
+OpenViking provides three ways to interact with the context database: **Embedded mode** for local development, **HTTP API** for remote server access, and **CLI** for shell scripting and agent tool-use.
+
+## Connection Modes
+
+<CardGroup cols={3}>
+  <Card title="Embedded" icon="laptop-code">
+    Run locally with local data storage for development and testing
+  </Card>
+  <Card title="HTTP API" icon="cloud">
+    Connect to a remote OpenViking server via REST API
+  </Card>
+  <Card title="CLI" icon="terminal">
+    Command-line interface for scripting and automation
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+### Embedded Mode (Python SDK)
+
+Use the embedded client for local development with direct database access:
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./data")
+client.initialize()
+
+# Use the client
+# ...
+
+client.close()
+```
+
+Embedded mode requires `ov.conf` to configure embedding, VLM, and storage modules. Default location: `~/.openviking/ov.conf`
+
+```bash
+export OPENVIKING_CONFIG_FILE=/path/to/ov.conf
+```
+
+### HTTP Mode (Python SDK)
+
+Connect to a remote OpenViking server:
+
+```python
+import openviking as ov
+
+client = ov.SyncHTTPClient(
+    url="http://localhost:1933",
+    api_key="your-key",
+    agent_id="my-agent",
+    timeout=120.0,
+)
+client.initialize()
+
+# Use the client
+# ...
+
+client.close()
+```
+
+When `url` is not provided, connection info is loaded from `ovcli.conf` (default: `~/.openviking/ovcli.conf`):
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "your-key",
+  "agent_id": "my-agent"
+}
+```
+
+### Direct HTTP API (curl)
+
+Access endpoints directly using HTTP:
+
+```bash
+curl http://localhost:1933/api/v1/fs/ls?uri=viking:// \
+  -H "X-API-Key: your-key"
+```
+
+### CLI Mode
+
+The CLI provides shell commands for all operations:
+
+```bash
+# List resources
+openviking ls viking://resources/
+
+# JSON output for scripting
+openviking -o json ls viking://resources/
+
+# Search for content
+openviking find "authentication flow" --limit 5
+```
+
+## Authentication
+
+OpenViking supports two authentication methods via HTTP headers:
+
+<CodeGroup>
+
+```bash X-API-Key Header
+curl http://localhost:1933/api/v1/system/status \
+  -H "X-API-Key: your-key"
+```
+
+```bash Bearer Token
+curl http://localhost:1933/api/v1/system/status \
+  -H "Authorization: Bearer your-key"
+```
+
+</CodeGroup>
+
+<Info>
+  The `/health` and `/ready` endpoints never require authentication. If no API key is configured on the server, all authentication is skipped.
+</Info>
+
+## Base URL and Endpoints
+
+All API endpoints are prefixed with `/api/v1/` and follow RESTful conventions:
+
+**Base URL:** `http://localhost:1933` (default)
+
+**API Version:** `v1`
+
+## Response Format
+
+All HTTP API responses follow a unified structure for consistency:
+
+### Success Response
+
+```json
+{
+  "status": "ok",
+  "result": {
+    // Response data varies by endpoint
+  },
+  "time": 0.123
+}
+```
+
+### Error Response
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Resource not found: viking://resources/nonexistent/"
+  },
+  "time": 0.01
+}
+```
+
+## Error Codes
+
+OpenViking uses semantic error codes mapped to standard HTTP status codes:
+
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| `OK` | 200 | Success |
+| `INVALID_ARGUMENT` | 400 | Invalid parameter |
+| `INVALID_URI` | 400 | Invalid Viking URI format |
+| `NOT_FOUND` | 404 | Resource not found |
+| `ALREADY_EXISTS` | 409 | Resource already exists |
+| `UNAUTHENTICATED` | 401 | Missing or invalid API key |
+| `PERMISSION_DENIED` | 403 | Insufficient permissions |
+| `RESOURCE_EXHAUSTED` | 429 | Rate limit exceeded |
+| `FAILED_PRECONDITION` | 412 | Precondition failed |
+| `DEADLINE_EXCEEDED` | 504 | Operation timed out |
+| `UNAVAILABLE` | 503 | Service unavailable |
+| `INTERNAL` | 500 | Internal server error |
+| `UNIMPLEMENTED` | 501 | Feature not implemented |
+| `EMBEDDING_FAILED` | 500 | Embedding generation failed |
+| `VLM_FAILED` | 500 | VLM call failed |
+| `SESSION_EXPIRED` | 410 | Session no longer exists |
+
+## API Endpoint Categories
+
+<CardGroup cols={2}>
+
+<Card title="System" icon="server" href="/api/system/status">
+  Health checks, system status, and operational endpoints
+</Card>
+
+<Card title="Resources" icon="folder-tree" href="/api/resources/add-resource">
+  Add and manage resources, skills, and import/export packs
+</Card>
+
+<Card title="File System" icon="file" href="/api/filesystem/ls">
+  List, read, create, move, and delete resources in Viking URIs
+</Card>
+
+<Card title="Content" icon="file-lines" href="/api/filesystem/read">
+  Read full content (L2), abstracts (L0), and overviews (L1)
+</Card>
+
+<Card title="Search" icon="magnifying-glass" href="/api/retrieval/find">
+  Semantic search, pattern matching, and context-aware retrieval
+</Card>
+
+<Card title="Skills" icon="sparkles" href="/api/skills/list-skills">
+  List and call agent skills and capabilities
+</Card>
+
+<Card title="Sessions" icon="comments" href="/api/sessions/create-session">
+  Create and manage conversation sessions with message history
+</Card>
+
+<Card title="Admin" icon="users-gear" href="/api/admin/users">
+  Multi-tenant workspace and user management (ROOT/ADMIN only)
+</Card>
+
+</CardGroup>
+
+## Quick Reference
+
+### System Endpoints
+
+```bash
+GET  /health                      # Health check (no auth)
+GET  /ready                       # Readiness probe
+GET  /api/v1/system/status       # System status
+POST /api/v1/system/wait         # Wait for processing
+```
+
+### Resource Management
+
+```bash
+POST /api/v1/resources           # Add resource
+POST /api/v1/skills              # Add skill
+POST /api/v1/pack/export         # Export .ovpack
+POST /api/v1/pack/import         # Import .ovpack
+POST /api/v1/resources/temp_upload  # Upload temp file
+```
+
+### File System Operations
+
+```bash
+GET    /api/v1/fs/ls             # List directory
+GET    /api/v1/fs/tree           # Directory tree
+GET    /api/v1/fs/stat           # Resource status
+POST   /api/v1/fs/mkdir          # Create directory
+DELETE /api/v1/fs                # Delete resource
+POST   /api/v1/fs/mv             # Move resource
+```
+
+### Content Access
+
+```bash
+GET /api/v1/content/read         # Read full content (L2)
+GET /api/v1/content/abstract     # Read abstract (L0)
+GET /api/v1/content/overview     # Read overview (L1)
+```
+
+### Search Operations
+
+```bash
+POST /api/v1/search/find         # Semantic search
+POST /api/v1/search/search       # Context-aware search
+POST /api/v1/search/grep         # Pattern search
+POST /api/v1/search/glob         # File pattern matching
+```
+
+### Relations
+
+```bash
+GET    /api/v1/relations         # Get relations
+POST   /api/v1/relations/link    # Create link
+DELETE /api/v1/relations/link    # Remove link
+```
+
+### Sessions
+
+```bash
+POST   /api/v1/sessions          # Create session
+GET    /api/v1/sessions          # List sessions
+GET    /api/v1/sessions/{id}     # Get session
+DELETE /api/v1/sessions/{id}     # Delete session
+POST   /api/v1/sessions/{id}/commit    # Commit session
+POST   /api/v1/sessions/{id}/messages  # Add message
+```
+
+## Example: Adding a Resource
+
+<CodeGroup>
+
+```python Python SDK
+import openviking as ov
+
+client = ov.SyncHTTPClient(url="http://localhost:1933")
+client.initialize()
+
+# Add a local directory as a resource
+result = client.add_resource(
+    path="./docs",
+    target="viking://resources/docs/",
+    reason="Project documentation",
+    wait=True
+)
+
+print(f"Added: {result}")
+client.close()
+```
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "path": "./docs",
+    "target": "viking://resources/docs/",
+    "reason": "Project documentation",
+    "wait": true
+  }'
+```
+
+```bash CLI
+openviking add ./docs viking://resources/docs/ \
+  --reason "Project documentation" \
+  --wait
+```
+
+</CodeGroup>
+
+## Example: Semantic Search
+
+<CodeGroup>
+
+```python Python SDK
+import openviking as ov
+
+client = ov.SyncHTTPClient(url="http://localhost:1933")
+client.initialize()
+
+# Search for authentication-related content
+results = client.find(
+    query="How does authentication work?",
+    target_uri="viking://resources/",
+    limit=5
+)
+
+for result in results:
+    print(f"{result.uri}: {result.score}")
+
+client.close()
+```
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/search/find \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "query": "How does authentication work?",
+    "target_uri": "viking://resources/",
+    "limit": 5
+  }'
+```
+
+```bash CLI
+openviking find "How does authentication work?" \
+  --target viking://resources/ \
+  --limit 5
+```
+
+</CodeGroup>
+
+## Rate Limiting
+
+<Note>
+  OpenViking currently does not enforce rate limiting by default. The `RESOURCE_EXHAUSTED` error code (HTTP 429) is reserved for future rate limiting implementations.
+</Note>
+
+## CLI Output Formats
+
+The CLI supports multiple output formats via the `--output` or `-o` flag:
+
+### Table Mode (default)
+
+```bash
+openviking ls viking://resources/
+# name          size  mode  isDir  uri
+# docs/         -     420   True   viking://resources/docs/
+# .abstract.md  100   420   False  viking://resources/.abstract.md
+```
+
+### JSON Mode
+
+```bash
+openviking -o json ls viking://resources/
+# [{"name": "docs/", "size": 0, "isDir": true, ...}, ...]
+```
+
+Set the default output format in `ovcli.conf`:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "output": "json"
+}
+```
+
+## Configuration Files
+
+### ov.conf (Embedded Mode)
+
+Default location: `~/.openviking/ov.conf`
+
+```json
+{
+  "embedding": {
+    "dense": {
+      "api_base": "<api-endpoint>",
+      "api_key": "<your-api-key>",
+      "provider": "<volcengine|openai|jina>",
+      "dimension": 1024,
+      "model": "<model-name>"
+    }
+  },
+  "vlm": {
+    "api_base": "<api-endpoint>",
+    "api_key": "<your-api-key>",
+    "provider": "<volcengine|openai|jina>",
+    "model": "<model-name>"
+  }
+}
+```
+
+### ovcli.conf (HTTP/CLI Mode)
+
+Default location: `~/.openviking/ovcli.conf`
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "your-key",
+  "agent_id": "my-agent",
+  "timeout": 60.0,
+  "output": "table"
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Resources API" icon="folder-tree" href="/api/resources/add-resource">
+    Learn how to add and manage resources
+  </Card>
+  <Card title="Search API" icon="magnifying-glass" href="/api/retrieval/find">
+    Explore semantic search and retrieval
+  </Card>
+  <Card title="Sessions API" icon="comments" href="/api/sessions/create-session">
+    Build conversation-aware applications
+  </Card>
+  <Card title="Configuration Guide" icon="gear" href="/guides/configuration">
+    Complete configuration reference
+  </Card>
+</CardGroup>

@@ -1,80 +1,505 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get started with OpenViking in 5 minutes
 ---
 
-## Get started in three steps
+## Prerequisites
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+Before starting with OpenViking, ensure your environment meets the following requirements:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Python 3.10+" icon="python">
+    Python 3.10 or higher is required
+  </Card>
+  <Card title="Network Access" icon="wifi">
+    Stable connection for dependencies and model services
+  </Card>
+  <Card title="AI Model Access" icon="brain">
+    VLM and embedding model API credentials
+  </Card>
+  <Card title="Operating System" icon="computer">
+    Linux, macOS, or Windows
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+**Advanced Requirements** (only for building from source):
+- **Go 1.22+** for AGFS components
+- **GCC 9+** or **Clang 11+** for C++ extensions
 </Note>
+
+## Installation
+
+<Steps>
+  <Step title="Install OpenViking">
+    Install the Python package using pip:
+    
+    ```bash
+    pip install openviking --upgrade --force-reinstall
+    ```
+    
+    <Tip>
+    Using **uv** for faster installation:
+    ```bash
+    uv pip install openviking --upgrade
+    ```
+    </Tip>
+  </Step>
+  
+  <Step title="Verify Installation">
+    Check that OpenViking is installed correctly:
+    
+    ```bash
+    python -c "import openviking; print(openviking.__version__)"
+    ```
+  </Step>
+</Steps>
+
+### Optional: Rust CLI
+
+For advanced users, OpenViking provides a high-performance Rust CLI:
+
+```bash
+# Quick install
+curl -fsSL https://raw.githubusercontent.com/volcengine/OpenViking/main/crates/ov_cli/install.sh | bash
+
+# Or build from source
+cargo install --git https://github.com/volcengine/OpenViking ov_cli
+```
+
+## Model Configuration
+
+OpenViking requires two types of models:
+
+<CardGroup cols={2}>
+  <Card title="VLM Model" icon="eye">
+    For image and content understanding
+  </Card>
+  <Card title="Embedding Model" icon="vector-square">
+    For vectorization and semantic retrieval
+  </Card>
+</CardGroup>
+
+### Supported VLM Providers
+
+OpenViking supports three VLM providers:
+
+<Tabs>
+  <Tab title="Volcengine (Doubao)">
+    **Recommended** - Cost-effective with good performance, free quota for new users.
+    
+    ```json
+    {
+      "vlm": {
+        "provider": "volcengine",
+        "model": "doubao-seed-2-0-pro-260215",
+        "api_key": "your-api-key",
+        "api_base": "https://ark.cn-beijing.volces.com/api/v3"
+      }
+    }
+    ```
+    
+    You can also use endpoint IDs:
+    ```json
+    {
+      "vlm": {
+        "provider": "volcengine",
+        "model": "ep-20241220174930-xxxxx",
+        "api_key": "your-api-key",
+        "api_base": "https://ark.cn-beijing.volces.com/api/v3"
+      }
+    }
+    ```
+    
+    <Info>
+    Get your API key from [Volcengine ARK Console](https://console.volcengine.com/ark)
+    </Info>
+  </Tab>
+  
+  <Tab title="OpenAI">
+    Use OpenAI's official API or OpenAI-compatible endpoints:
+    
+    ```json
+    {
+      "vlm": {
+        "provider": "openai",
+        "model": "gpt-4o",
+        "api_key": "your-api-key",
+        "api_base": "https://api.openai.com/v1"
+      }
+    }
+    ```
+    
+    <Info>
+    Get your API key from [OpenAI Platform](https://platform.openai.com)
+    </Info>
+  </Tab>
+  
+  <Tab title="LiteLLM">
+    Unified access to various models including Anthropic, DeepSeek, Gemini, Qwen, vLLM, Ollama, and more.
+    
+    **Anthropic (Claude):**
+    ```json
+    {
+      "vlm": {
+        "provider": "litellm",
+        "model": "claude-3-5-sonnet-20240620",
+        "api_key": "your-anthropic-api-key"
+      }
+    }
+    ```
+    
+    **Qwen (DashScope):**
+    ```json
+    {
+      "vlm": {
+        "provider": "litellm",
+        "model": "dashscope/qwen-turbo",
+        "api_key": "your-dashscope-api-key",
+        "api_base": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      }
+    }
+    ```
+    
+    **Local Models (Ollama):**
+    ```json
+    {
+      "vlm": {
+        "provider": "litellm",
+        "model": "ollama/llama3.1",
+        "api_base": "http://localhost:11434"
+      }
+    }
+    ```
+    
+    <Info>
+    The system auto-detects common models like `claude-*`, `deepseek-*`, `gemini-*`, `ollama/*`, etc. See [LiteLLM Providers](https://docs.litellm.ai/docs/providers) for complete list.
+    </Info>
+  </Tab>
+</Tabs>
+
+### Configuration File
+
+<Steps>
+  <Step title="Create Configuration Directory">
+    ```bash
+    mkdir -p ~/.openviking
+    ```
+  </Step>
+  
+  <Step title="Create Configuration File">
+    Create `~/.openviking/ov.conf` with your model settings:
+    
+    ```json
+    {
+      "storage": {
+        "workspace": "/home/your-name/openviking_workspace"
+      },
+      "log": {
+        "level": "INFO",
+        "output": "stdout"
+      },
+      "embedding": {
+        "dense": {
+          "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+          "api_key": "your-embedding-api-key",
+          "provider": "volcengine",
+          "dimension": 1024,
+          "model": "doubao-embedding-vision-250615"
+        },
+        "max_concurrent": 10
+      },
+      "vlm": {
+        "api_base": "https://ark.cn-beijing.volces.com/api/v3",
+        "api_key": "your-vlm-api-key",
+        "provider": "volcengine",
+        "model": "doubao-seed-2-0-pro-260215",
+        "max_concurrent": 100
+      }
+    }
+    ```
+    
+    <Warning>
+    Replace `your-name`, `your-embedding-api-key`, and `your-vlm-api-key` with your actual values.
+    </Warning>
+  </Step>
+  
+  <Step title="Set Environment Variable (Optional)">
+    If your config file is not at the default location:
+    
+    <CodeGroup>
+    ```bash Linux/macOS
+    export OPENVIKING_CONFIG_FILE=~/.openviking/ov.conf
+    ```
+    
+    ```powershell Windows (PowerShell)
+    $env:OPENVIKING_CONFIG_FILE = "$HOME/.openviking/ov.conf"
+    ```
+    
+    ```bat Windows (CMD)
+    set "OPENVIKING_CONFIG_FILE=%USERPROFILE%\.openviking\ov.conf"
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+## Your First Example
+
+Let's create a complete example that demonstrates OpenViking's core features.
+
+<Steps>
+  <Step title="Create Python Script">
+    Create a file named `example.py`:
+    
+    ```python example.py
+    import openviking as ov
+    
+    # Initialize OpenViking client with data directory
+    client = ov.OpenViking(path="./data")
+    
+    try:
+        # Initialize the client
+        client.initialize()
+        print("✓ Client initialized")
+        
+        # Add resource (supports URL, file, or directory)
+        add_result = client.add_resource(
+            path="https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md"
+        )
+        root_uri = add_result['root_uri']
+        print(f"✓ Resource added: {root_uri}")
+        
+        # Explore the resource tree structure
+        ls_result = client.ls(root_uri)
+        print(f"\n📁 Directory structure:\n{ls_result}")
+        
+        # Use glob to find markdown files
+        glob_result = client.glob(pattern="**/*.md", uri=root_uri)
+        if glob_result['matches']:
+            first_file = glob_result['matches'][0]
+            content = client.read(first_file)
+            print(f"\n📄 Content preview ({first_file}):\n{content[:200]}...")
+        
+        # Wait for semantic processing to complete
+        print("\n⏳ Waiting for semantic processing...")
+        client.wait_processed()
+        print("✓ Processing complete")
+        
+        # Get abstract and overview of the resource (L0 and L1 layers)
+        abstract = client.abstract(root_uri)
+        overview = client.overview(root_uri)
+        print(f"\n📝 L0 Abstract:\n{abstract}")
+        print(f"\n📋 L1 Overview:\n{overview[:500]}...")
+        
+        # Perform semantic search
+        print("\n🔍 Semantic search: 'what is openviking'")
+        results = client.find("what is openviking", target_uri=root_uri)
+        print("\nSearch results:")
+        for r in results.resources:
+            print(f"  • {r.uri} (score: {r.score:.4f})")
+        
+        # Close the client
+        client.close()
+        print("\n✓ Client closed successfully")
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
+        import traceback
+        traceback.print_exc()
+    ```
+  </Step>
+  
+  <Step title="Run the Script">
+    ```bash
+    python example.py
+    ```
+  </Step>
+  
+  <Step title="Expected Output">
+    You should see output similar to:
+    
+    ```
+    ✓ Client initialized
+    ✓ Resource added: viking://resources/github.com/volcengine/OpenViking/README.md
+    
+    📁 Directory structure:
+    [...]
+    
+    📄 Content preview:
+    <div align="center">
+    
+    <picture>
+      <img alt="OpenViking" src="docs/images/banner.jpg" width="100%" height="auto">
+    </picture>...
+    
+    ⏳ Waiting for semantic processing...
+    ✓ Processing complete
+    
+    📝 L0 Abstract:
+    OpenViking is an open-source context database for AI Agents...
+    
+    📋 L1 Overview:
+    # Overview
+    OpenViking unifies the management of context through a file system paradigm...
+    
+    🔍 Semantic search: 'what is openviking'
+    
+    Search results:
+      • viking://resources/github.com/volcengine/OpenViking/README.md (score: 0.8523)
+    
+    ✓ Client closed successfully
+    ```
+  </Step>
+</Steps>
+
+<Info>
+Congratulations! You've successfully:
+- Added a resource to OpenViking
+- Explored the filesystem structure
+- Retrieved hierarchical context (L0/L1 layers)
+- Performed semantic search
+</Info>
+
+## Key API Operations
+
+Here are the essential operations you'll use with OpenViking:
+
+### Resource Management
+
+```python
+# Add resources (URL, local file, or directory)
+client.add_resource(path="https://example.com/doc.pdf")
+client.add_resource(path="/path/to/local/file.md")
+client.add_resource(path="/path/to/directory/")
+
+# Wait for semantic processing
+client.wait_processed()
+
+# Remove resources
+client.rm("viking://resources/example/", recursive=True)
+```
+
+### Filesystem Operations
+
+```python
+# List directory contents
+client.ls("viking://resources/")
+
+# Read file content
+content = client.read("viking://resources/doc.md")
+
+# Create directory
+client.mkdir("viking://agent/skills/custom/")
+
+# Find files by pattern
+matches = client.glob("**/*.py", uri="viking://resources/project/")
+
+# Tree view
+tree = client.tree("viking://resources/", max_depth=2)
+```
+
+### Hierarchical Context Access
+
+```python
+# Get L0 abstract (~100 tokens)
+abstract = client.abstract("viking://resources/project/")
+
+# Get L1 overview (~2k tokens)
+overview = client.overview("viking://resources/project/")
+
+# Get L2 full content
+content = client.read("viking://resources/project/docs/api.md")
+```
+
+### Semantic Search
+
+```python
+# Search across all resources
+results = client.find("user authentication", limit=10)
+
+# Search within specific URI
+results = client.find(
+    query="API endpoints",
+    target_uri="viking://resources/project/",
+    limit=5
+)
+
+# Access results
+for resource in results.resources:
+    print(f"{resource.uri} - Score: {resource.score}")
+    print(f"Content: {resource.content[:200]}...")
+```
+
+### Session Management
+
+```python
+# Create a session
+session = client.create_session()
+session_id = session["session_id"]
+
+# Add messages
+client.add_message(session_id, "user", "How do I configure OpenViking?")
+client.add_message(session_id, "assistant", "To configure OpenViking...")
+
+# Get session info
+info = client.get_session(session_id)
+
+# List all sessions
+sessions = client.list_sessions()
+
+# Commit session (extract memories)
+client.commit_session(session_id)
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Server Deployment" icon="server" href="/server-deployment">
+    Learn how to deploy OpenViking as a production HTTP service
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Configuration Guide" icon="gear" href="/guides/configuration">
+    Advanced configuration options and model providers
+  </Card>
+  <Card title="Examples" icon="flask" href="https://github.com/volcengine/OpenViking/tree/main/examples">
+    Browse code examples and integration patterns
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Import Error: Cannot find module 'openviking'">
+    Make sure OpenViking is installed in your current Python environment:
+    ```bash
+    pip install openviking --upgrade
+    python -c "import openviking; print(openviking.__version__)"
+    ```
+  </Accordion>
+  
+  <Accordion title="Configuration file not found">
+    Ensure your config file exists at `~/.openviking/ov.conf` or set the `OPENVIKING_CONFIG_FILE` environment variable:
+    ```bash
+    export OPENVIKING_CONFIG_FILE=/path/to/your/ov.conf
+    ```
+  </Accordion>
+  
+  <Accordion title="API authentication errors">
+    Verify your API keys are correct in the configuration file. For Volcengine, check [ARK Console](https://console.volcengine.com/ark). For OpenAI, check [OpenAI Platform](https://platform.openai.com).
+  </Accordion>
+  
+  <Accordion title="Semantic processing takes too long">
+    Semantic processing time depends on:
+    - Resource size and complexity
+    - Model API response time
+    - Network latency
+    
+    You can check processing status:
+    ```python
+    status = client.wait_processed()
+    print(status)
+    ```
+  </Accordion>
+</AccordionGroup>

@@ -1,0 +1,343 @@
+---
+title: "search()"
+description: "Context-aware semantic search with session understanding and intent analysis"
+---
+
+## Overview
+
+The `search()` method performs intelligent semantic search with optional session context. It analyzes conversation history to understand intent and generate optimized queries for better retrieval accuracy.
+
+**Key Differences from find():**
+- **Intent Analysis**: Understands query intent from session context
+- **Session Context**: Uses conversation history for context-aware search
+- **Query Expansion**: Generates multiple optimized queries
+- **Conversational**: Ideal for multi-turn conversations
+
+## Basic Usage
+
+<CodeGroup>
+```python Python SDK
+from openviking import OpenViking
+from openviking.message import TextPart
+
+client = OpenViking()
+
+# Create session with conversation context
+session = client.session()
+session.add_message("user", [
+    TextPart(text="I'm building a login page with OAuth")
+])
+session.add_message("assistant", [
+    TextPart(text="I can help you with OAuth implementation.")
+])
+
+# Search understands the conversation context
+results = client.search(
+    "best practices",
+    session=session
+)
+
+for ctx in results.resources:
+    print(f"Found: {ctx.uri}")
+    print(f"Score: {ctx.score:.3f}")
+    print(f"Abstract: {ctx.abstract[:200]}...")
+    print("---")
+```
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/search/search \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "query": "best practices",
+    "session_id": "abc123",
+    "limit": 10
+  }'
+```
+
+```bash CLI
+openviking search "best practices" --session-id abc123 --limit 10
+```
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="query" type="string" required>
+  Search query string. Can be natural language or specific technical terms.
+</ParamField>
+
+<ParamField path="target_uri" type="string" default="">
+  Limit search to specific Viking URI prefix. Examples:
+  - `viking://resources/` - Search only resources
+  - `viking://user/memories/` - Search only user memories
+  - `viking://resources/my-project/` - Search in specific project
+</ParamField>
+
+<ParamField path="session" type="Session" default="None">
+  Session object for context-aware search (Python SDK only). Provides conversation history for intent analysis.
+</ParamField>
+
+<ParamField path="session_id" type="string" default="None">
+  Session ID for context-aware search (HTTP API only). References an existing session.
+</ParamField>
+
+<ParamField path="limit" type="integer" default="10">
+  Maximum number of results to return. The retrieval system may search more candidates internally but will only return the top N.
+</ParamField>
+
+<ParamField path="score_threshold" type="float" default="None">
+  Minimum relevance score threshold (0-1). Only results with scores above this threshold will be returned.
+</ParamField>
+
+<ParamField path="filter" type="Dict[str, Any]" default="None">
+  Additional metadata filters for constraining search results. Structure depends on your metadata schema.
+</ParamField>
+
+## Response Structure
+
+Returns a `FindResult` object with the following structure:
+
+<ResponseField name="memories" type="List[MatchedContext]">
+  Matched memory contexts from user/agent memory spaces.
+</ResponseField>
+
+<ResponseField name="resources" type="List[MatchedContext]">
+  Matched resource contexts from the resources space.
+</ResponseField>
+
+<ResponseField name="skills" type="List[MatchedContext]">
+  Matched skill contexts from the agent skills space.
+</ResponseField>
+
+<ResponseField name="query_plan" type="QueryPlan">
+  Query plan used for intent analysis. Contains:
+  - `queries`: List of generated typed queries
+  - `reasoning`: LLM reasoning for query generation
+  - `session_context`: Session context summary
+</ResponseField>
+
+<ResponseField name="query_results" type="List[QueryResult]">
+  Detailed results for each generated query, including searched directories and thinking traces.
+</ResponseField>
+
+<ResponseField name="total" type="integer">
+  Total number of matched contexts across all types.
+</ResponseField>
+
+### MatchedContext Structure
+
+Each matched context contains:
+
+<ResponseField name="uri" type="string">
+  Viking URI of the matched context. May include level suffix (`.abstract.md`, `.overview.md`).
+</ResponseField>
+
+<ResponseField name="context_type" type="ContextType">
+  Type of context: `memory`, `resource`, or `skill`.
+</ResponseField>
+
+<ResponseField name="level" type="integer">
+  Context layer level:
+  - `0`: L0 (abstract/directory)
+  - `1`: L1 (overview)
+  - `2`: L2 (full content/file)
+</ResponseField>
+
+<ResponseField name="abstract" type="string">
+  L0 abstract content - concise summary of the context.
+</ResponseField>
+
+<ResponseField name="overview" type="string">
+  L1 overview content (for directories).
+</ResponseField>
+
+<ResponseField name="score" type="float">
+  Relevance score (0-1). Higher scores indicate better matches. Combines semantic similarity with hotness scoring.
+</ResponseField>
+
+<ResponseField name="match_reason" type="string">
+  Explanation of why this context matched the query.
+</ResponseField>
+
+<ResponseField name="category" type="string">
+  Category or classification of the context.
+</ResponseField>
+
+<ResponseField name="relations" type="List[RelatedContext]">
+  Related contexts with URIs and abstracts.
+</ResponseField>
+
+## Examples
+
+### Context-Aware Search
+
+```python
+from openviking import OpenViking
+from openviking.message import TextPart
+
+client = OpenViking()
+
+# Create session with context
+session = client.session()
+session.add_message("user", [
+    TextPart(text="I'm working on user authentication")
+])
+
+# Search with context - returns OAuth-specific results
+results = client.search(
+    "implementation guide",
+    session=session
+)
+
+for ctx in results.resources:
+    print(f"URI: {ctx.uri}")
+    print(f"Score: {ctx.score:.3f}")
+    print(f"Reason: {ctx.match_reason}")
+```
+
+### Search Without Session
+
+```python
+# search() can also work without session
+# It still performs intent analysis on the query itself
+results = client.search(
+    "how to implement OAuth 2.0 authorization code flow"
+)
+
+for ctx in results.resources:
+    print(f"Found: {ctx.uri} (score: {ctx.score:.3f})")
+```
+
+### Search with Filters
+
+```python
+# Search with URI scope and score threshold
+results = client.search(
+    "error handling patterns",
+    target_uri="viking://resources/backend/",
+    score_threshold=0.7,
+    limit=5
+)
+
+print(f"Found {results.total} high-quality matches")
+```
+
+### HTTP API Example
+
+```bash
+curl -X POST http://localhost:1933/api/v1/search/search \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key" \
+  -d '{
+    "query": "authentication best practices",
+    "target_uri": "viking://resources/",
+    "limit": 5,
+    "score_threshold": 0.5
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "memories": [],
+    "resources": [
+      {
+        "uri": "viking://resources/docs/auth/.abstract.md",
+        "context_type": "resource",
+        "level": 0,
+        "abstract": "Comprehensive authentication guide covering OAuth 2.0, JWT tokens, and session management best practices.",
+        "score": 0.95,
+        "match_reason": "Context-aware match: OAuth authentication best practices",
+        "category": "documentation",
+        "relations": [
+          {
+            "uri": "viking://resources/examples/oauth-flow/",
+            "abstract": "Working OAuth 2.0 implementation examples"
+          }
+        ]
+      }
+    ],
+    "skills": [],
+    "query_plan": {
+      "queries": [
+        {
+          "query": "OAuth 2.0 authentication best practices",
+          "context_type": "resource",
+          "intent": "Find authentication implementation guides",
+          "priority": 1
+        }
+      ],
+      "reasoning": "User is looking for authentication best practices, focusing on OAuth 2.0 implementation guidance."
+    },
+    "total": 1
+  },
+  "time": 0.15
+}
+```
+
+## Retrieval Strategy
+
+The `search()` method uses a sophisticated hierarchical retrieval pipeline:
+
+### 1. Intent Analysis
+
+- Analyzes session context (recent messages + compression summary)
+- Generates multiple typed queries targeting different context types
+- Expands queries based on conversation understanding
+
+### 2. Hierarchical Retrieval
+
+- **Starting Points**: Identifies relevant directories using global vector search
+- **Recursive Search**: Explores directory hierarchies depth-first
+- **Score Propagation**: Propagates scores from parent to child contexts
+- **Convergence**: Stops when top-k results stabilize
+
+### 3. Reranking (Optional)
+
+- Uses reranker model for more accurate relevance scoring
+- Combines semantic similarity with content-based scoring
+- Applies hotness scoring based on `active_count` and `updated_at`
+
+### 4. Result Merging
+
+- Merges results from multiple typed queries
+- Deduplicates by URI (keeps highest-scored)
+- Sorts by final blended score
+
+## When to Use search() vs find()
+
+| Use Case | Method | Reason |
+|----------|--------|--------|
+| Conversational search | `search()` | Understands context from conversation |
+| Multi-turn interactions | `search()` | Session history improves results |
+| Complex queries | `search()` | Intent analysis and query expansion |
+| Simple lookup | `find()` | Faster, no session overhead |
+| One-shot queries | `find()` | No conversation context needed |
+
+## Related Methods
+
+- [find()](/api/retrieval/find) - Simple semantic search without session context
+- [Session Management](/api/sessions/create-session) - Creating and managing sessions
+- [Progressive Content Reading](/api/filesystem/overview) - Reading L0/L1/L2 content layers
+
+## Best Practices
+
+1. **Use Sessions for Conversations**: Create a session and add conversation history for better context-aware results
+
+2. **Scope Your Search**: Use `target_uri` to limit search to relevant namespaces
+
+3. **Set Score Thresholds**: Filter low-quality matches with `score_threshold`
+
+4. **Progressive Loading**: Start with abstracts, then load overview/content as needed
+
+5. **Monitor Query Plans**: Check `query_plan.reasoning` to understand how queries were expanded
+
+## Performance Notes
+
+- **Intent Analysis**: Adds ~100-200ms for LLM call (only when session provided)
+- **Caching**: Query embeddings and session summaries are cached
+- **Convergence**: Recursive search typically converges in 2-3 rounds
+- **Reranking**: Optional reranker adds ~50-100ms but significantly improves accuracy

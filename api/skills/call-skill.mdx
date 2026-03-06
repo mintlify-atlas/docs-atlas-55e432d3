@@ -1,0 +1,350 @@
+---
+title: Add Skill
+api: POST /api/v1/skills
+---
+
+Add a skill to the knowledge base. Skills define capabilities that agents can invoke. OpenViking automatically detects and converts MCP tool definitions to skill format.
+
+<Note>
+Skills are vectorized and indexed for semantic retrieval. Use `wait=true` or call `/api/v1/system/wait` to ensure processing completes.
+</Note>
+
+## Authentication
+
+Requires API key authentication via `X-API-Key` header.
+
+## Request Body
+
+<ParamField body="data" type="object | string" required>
+  Skill data in one of four supported formats:
+  
+  1. **Skill format** (dict with name, description, content)
+  2. **MCP Tool format** (dict with inputSchema - auto-converted)
+  3. **String** (SKILL.md content with YAML frontmatter)
+  4. **Path** (file or directory path)
+</ParamField>
+
+<ParamField body="wait" type="boolean" default="false">
+  Wait for vectorization to complete before returning
+</ParamField>
+
+<ParamField body="timeout" type="number" default="null">
+  Timeout in seconds when `wait=true`
+</ParamField>
+
+## Skill Data Formats
+
+### Format 1: Skill Dict
+
+```json
+{
+  "name": "search-web",
+  "description": "Search the web for current information",
+  "content": "# search-web\n\nSearch the web for current information.\n\n## Parameters\n- **query** (string, required): Search query\n- **limit** (integer, optional): Max results, default 10",
+  "allowed_tools": ["HttpClient", "JsonParser"],
+  "tags": ["web", "search"]
+}
+```
+
+### Format 2: MCP Tool (Auto-Converted)
+
+```json
+{
+  "name": "calculator",
+  "description": "Perform mathematical calculations",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "Mathematical expression to evaluate"
+      }
+    },
+    "required": ["expression"]
+  }
+}
+```
+
+<Info>
+OpenViking detects MCP format by the presence of `inputSchema` and automatically converts it to skill format with generated markdown documentation.
+</Info>
+
+### Format 3: SKILL.md String
+
+```markdown
+---
+name: code-runner
+description: Execute code in various languages
+allowed-tools:
+  - FileSystem
+  - ProcessRunner
+tags:
+  - code
+  - execution
+---
+
+# code-runner
+
+Execute code in various languages safely.
+
+## Parameters
+- **language** (string, required): Programming language
+- **code** (string, required): Code to execute
+- **timeout** (integer, optional): Timeout in seconds
+```
+
+### Format 4: File Path
+
+```json
+{
+  "data": "./skills/search-web/SKILL.md"
+}
+```
+
+Or for directories with auxiliary files:
+
+```json
+{
+  "data": "./skills/code-runner/"
+}
+```
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Skill creation result
+  
+  <Expandable title="Result Object">
+    <ResponseField name="status" type="string">
+      Creation status (`success`)
+    </ResponseField>
+    
+    <ResponseField name="uri" type="string">
+      URI where skill was stored (e.g., `viking://agent/skills/search-web/`)
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Skill name in kebab-case
+    </ResponseField>
+    
+    <ResponseField name="auxiliary_files" type="number">
+      Number of auxiliary files included (when adding from directory)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash Add Skill Dict
+curl -X POST http://localhost:1933/api/v1/skills \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "data": {
+      "name": "search-web",
+      "description": "Search the web for current information",
+      "content": "# search-web\n\nSearch the web for current information.\n\n## Parameters\n- **query** (string, required): Search query\n- **limit** (integer, optional): Max results, default 10"
+    }
+  }'
+```
+
+```bash Add MCP Tool
+curl -X POST http://localhost:1933/api/v1/skills \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "data": {
+      "name": "calculator",
+      "description": "Perform mathematical calculations",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string",
+            "description": "Mathematical expression to evaluate"
+          }
+        },
+        "required": ["expression"]
+      }
+    }
+  }'
+```
+
+```python Python SDK
+# Add from skill dict
+skill = {
+    "name": "search-web",
+    "description": "Search the web for current information",
+    "content": """
+# search-web
+
+Search the web for current information.
+
+## Parameters
+- **query** (string, required): Search query
+- **limit** (integer, optional): Max results, default 10
+"""
+}
+result = client.add_skill(skill)
+print(f"Added: {result['uri']}")
+
+# Add from MCP tool (auto-converted)
+mcp_tool = {
+    "name": "calculator",
+    "description": "Perform mathematical calculations",
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "expression": {
+                "type": "string",
+                "description": "Mathematical expression to evaluate"
+            }
+        },
+        "required": ["expression"]
+    }
+}
+result = client.add_skill(mcp_tool)
+print(f"Added: {result['uri']}")
+
+# Add from file
+result = client.add_skill("./skills/search-web/SKILL.md")
+print(f"Added: {result['uri']}")
+
+# Add from directory (includes auxiliary files)
+result = client.add_skill("./skills/code-runner/")
+print(f"Added: {result['uri']}")
+print(f"Auxiliary files: {result['auxiliary_files']}")
+```
+
+```bash CLI
+# Add from file
+openviking add-skill ./skills/search-web/SKILL.md
+
+# Add from directory and wait for processing
+openviking add-skill ./skills/code-runner/ --wait
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Success Response
+{
+  "status": "ok",
+  "result": {
+    "status": "success",
+    "uri": "viking://agent/skills/search-web/",
+    "name": "search-web",
+    "auxiliary_files": 0
+  },
+  "time": 0.15
+}
+```
+
+```json With Auxiliary Files
+{
+  "status": "ok",
+  "result": {
+    "status": "success",
+    "uri": "viking://agent/skills/code-runner/",
+    "name": "code-runner",
+    "auxiliary_files": 3
+  },
+  "time": 0.25
+}
+```
+
+</ResponseExample>
+
+## MCP Tool Conversion
+
+When you provide a dict with `inputSchema`, OpenViking automatically converts it to skill format:
+
+**Input (MCP):**
+```json
+{
+  "name": "search_web",
+  "description": "Search the web",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "query": {"type": "string", "description": "Search query"},
+      "limit": {"type": "integer", "description": "Max results"}
+    },
+    "required": ["query"]
+  }
+}
+```
+
+**Output (Skill):**
+```markdown
+---
+name: search-web
+description: Search the web
+---
+
+# search-web
+
+Search the web
+
+## Parameters
+
+- **query** (string) (required): Search query
+- **limit** (integer) (optional): Max results
+
+## Usage
+
+This tool wraps the MCP tool `search-web`. Call this when the user needs functionality matching the description above.
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Clear Descriptions">
+    ```python
+    # Good - specific and actionable
+    skill = {
+        "name": "search-web",
+        "description": "Search the web for current information using Google",
+        ...
+    }
+    
+    # Less helpful - too vague
+    skill = {
+        "name": "search",
+        "description": "Search",
+        ...
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use Kebab-Case for Names">
+    - `search-web` ✅
+    - `searchWeb` ❌
+    - `search_web` ❌
+  </Accordion>
+  
+  <Accordion title="Include Comprehensive Content">
+    - Clear parameter descriptions with types
+    - When to use the skill
+    - Concrete examples
+    - Edge cases and limitations
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+- [List Skills](/api/skills/list-skills) - View all skills
+- [Search Skills](/api/retrieval/find) - Semantic search
+- [Remove Skill](/api/filesystem/rm) - Delete a skill
+- [Wait for Processing](/api/system/wait) - Ensure vectorization completes

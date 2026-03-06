@@ -1,0 +1,128 @@
+---
+title: "Create Session"
+api: "POST /api/v1/sessions"
+description: "Create a new conversation session with auto-generated ID"
+---
+
+Create a new session to track conversation state, context usage, and extract long-term memories. Each session is assigned a unique ID automatically.
+
+## Request
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+<ParamField header="Content-Type" type="string" default="application/json">
+  Must be `application/json`
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Session creation result
+  
+  <ResponseField name="session_id" type="string">
+    Auto-generated session identifier
+  </ResponseField>
+  
+  <ResponseField name="user" type="object">
+    User information associated with the session
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/sessions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python SDK
+import openviking as ov
+
+# Initialize client
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Create new session (auto-generated ID)
+session = client.session()
+print(f"Session created: {session.session_id}")
+print(f"Session URI: {session.uri}")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.post(
+    "http://localhost:1933/api/v1/sessions",
+    headers={
+        "Content-Type": "application/json",
+        "X-API-Key": "your-api-key"
+    }
+)
+
+result = response.json()
+print(f"Session ID: {result['result']['session_id']}")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "session_id": "a1b2c3d4",
+    "user": {
+      "user_id": "alice",
+      "agent_id": "default"
+    }
+  },
+  "time": 0.1
+}
+```
+
+## Session Lifecycle
+
+Once created, a session can be used to:
+
+1. **Add messages** - Track conversation turns with `add_message()`
+2. **Search with context** - Improve retrieval using session history
+3. **Track usage** - Record which contexts and skills were actually used
+4. **Commit** - Archive messages and extract long-term memories
+
+## Session URI Structure
+
+Each session is stored at:
+
+```
+viking://session/{user_space}/{session_id}/
+├── messages.jsonl          # Current messages
+├── .abstract.md            # L0: One-sentence summary
+├── .overview.md            # L1: Session structure description
+├── tools/                  # Tool execution records
+└── history/                # Archived message archives
+    ├── archive_001/
+    └── archive_002/
+```
+
+## Related Endpoints
+
+- [Add Message](/api/sessions/add-message) - Add messages to the session
+- [Commit Session](/api/sessions/commit-session) - Archive and extract memories
+- [Get Session](/api/sessions/get-session) - Retrieve session details
+- [Delete Session](/api/sessions/delete-session) - Remove a session

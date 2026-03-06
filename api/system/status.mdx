@@ -1,0 +1,126 @@
+---
+title: System Status
+api: GET /api/v1/system/status
+---
+
+Get system status including initialization state and current user information.
+
+<Note>
+For unauthenticated health checks, use the `/health` endpoint instead.
+</Note>
+
+## Authentication
+
+Requires API key authentication via `X-API-Key` header.
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  System status information
+  
+  <Expandable title="Status Object">
+    <ResponseField name="initialized" type="boolean">
+      Whether the system has completed initialization
+    </ResponseField>
+    
+    <ResponseField name="user" type="string">
+      Current user ID from the API key
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Example
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://localhost:1933/api/v1/system/status \
+  -H "X-API-Key: your-key"
+```
+
+```python Python SDK
+# Get system status
+status = client.observer.system
+print(status)
+```
+
+```bash CLI
+openviking status
+```
+
+</CodeGroup>
+
+<ResponseExample>
+
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "initialized": true,
+    "user": "alice"
+  },
+  "time": 0.05
+}
+```
+
+</ResponseExample>
+
+## Health Check (No Auth)
+
+For basic health checks without authentication (e.g., load balancers, monitoring):
+
+```bash
+curl -X GET http://localhost:1933/health
+```
+
+Response:
+```json
+{
+  "status": "ok"
+}
+```
+
+## Readiness Probe
+
+For Kubernetes readiness probes that check all subsystems:
+
+```bash
+curl -X GET http://localhost:1933/ready
+```
+
+Response (200 OK):
+```json
+{
+  "status": "ready",
+  "checks": {
+    "agfs": "ok",
+    "vectordb": "ok",
+    "api_key_manager": "ok"
+  }
+}
+```
+
+Response (503 Service Unavailable):
+```json
+{
+  "status": "not_ready",
+  "checks": {
+    "agfs": "ok",
+    "vectordb": "error: connection refused",
+    "api_key_manager": "ok"
+  }
+}
+```
+
+## Related Endpoints
+
+- [System Metrics](/api/system/metrics) - Detailed component metrics
+- [Wait for Processing](/api/system/wait) - Wait for async operations

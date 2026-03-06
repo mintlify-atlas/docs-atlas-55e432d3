@@ -1,0 +1,316 @@
+---
+title: "wait_processed"
+description: "Wait for asynchronous resource processing to complete"
+---
+
+## Overview
+
+Wait for all queued semantic processing and vectorization tasks to complete. This ensures that resources and skills are fully processed and indexed before you query them.
+
+<Info>
+  After adding resources or skills, OpenViking processes them asynchronously. Use this method to wait for completion before searching or retrieving content.
+</Info>
+
+## Method Signature
+
+<CodeGroup>
+```python Python SDK
+client.wait_processed(
+    timeout: Optional[float] = None
+) -> Dict[str, Any]
+```
+
+```bash HTTP API
+POST /api/v1/system/wait
+```
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="timeout" type="float">
+  Maximum time to wait in seconds. If not provided, waits indefinitely until all processing completes.
+</ParamField>
+
+## Response
+
+<ResponseField name="semantic_queue" type="object">
+  Status of the semantic processing queue (L0/L1 generation)
+  <Expandable title="semantic_queue properties">
+    <ResponseField name="processed" type="integer">
+      Number of items successfully processed
+    </ResponseField>
+    <ResponseField name="error_count" type="integer">
+      Number of items that failed processing
+    </ResponseField>
+    <ResponseField name="errors" type="array">
+      List of error objects with `message` field
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="vector_queue" type="object">
+  Status of the vectorization queue
+  <Expandable title="vector_queue properties">
+    <ResponseField name="processed" type="integer">
+      Number of items successfully vectorized
+    </ResponseField>
+    <ResponseField name="error_count" type="integer">
+      Number of items that failed vectorization
+    </ResponseField>
+    <ResponseField name="errors" type="array">
+      List of error objects with `message` field
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+### Basic Usage
+
+<CodeGroup>
+```python Python SDK
+import openviking as ov
+
+client = ov.OpenViking(path="./data")
+client.initialize()
+
+# Add resource without waiting
+result = client.add_resource("./docs/guide.md")
+
+# Wait for processing to complete
+status = client.wait_processed()
+print(f"Processed: {status['semantic_queue']['processed']} items")
+```
+
+```bash HTTP API
+# Add resource
+curl -X POST http://localhost:1933/api/v1/resources \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{"path": "./docs/guide.md"}'
+
+# Wait for processing
+curl -X POST http://localhost:1933/api/v1/system/wait \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{}'
+```
+
+```bash CLI
+# Add resource (CLI waits by default)
+openviking add-resource ./docs/guide.md
+```
+</CodeGroup>
+
+<ResponseExample>
+```json Response
+{
+  "status": "ok",
+  "result": {
+    "semantic_queue": {
+      "processed": 12,
+      "error_count": 0,
+      "errors": []
+    },
+    "vector_queue": {
+      "processed": 12,
+      "error_count": 0,
+      "errors": []
+    }
+  },
+  "time": 2.4
+}
+```
+</ResponseExample>
+
+### With Timeout
+
+<CodeGroup>
+```python Python SDK
+try:
+    status = client.wait_processed(timeout=30.0)
+    print("Processing complete!")
+except Exception as e:
+    print(f"Timeout or error: {e}")
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/system/wait \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{"timeout": 30.0}'
+```
+</CodeGroup>
+
+### Batch Processing Pattern
+
+<CodeGroup>
+```python Python SDK
+# Add multiple resources without waiting
+files = [
+    "./docs/intro.md",
+    "./docs/api.md",
+    "./docs/examples.md"
+]
+
+for file in files:
+    client.add_resource(file, wait=False)
+    print(f"Queued: {file}")
+
+# Wait for all to complete
+print("Waiting for processing...")
+status = client.wait_processed()
+
+print(f"✓ Processed {status['semantic_queue']['processed']} items")
+if status['semantic_queue']['error_count'] > 0:
+    print(f"⚠ Errors: {status['semantic_queue']['errors']}")
+```
+</CodeGroup>
+
+### Integration with Search
+
+<CodeGroup>
+```python Python SDK
+# Add resource and wait
+client.add_resource(
+    "https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/README.md",
+    wait=False
+)
+
+# Wait for processing
+client.wait_processed()
+
+# Now safe to search
+results = client.find("what is openviking")
+for r in results.resources:
+    print(f"Found: {r.uri} (score: {r.score:.4f})")
+```
+</CodeGroup>
+
+## Processing Queues
+
+OpenViking uses two asynchronous queues for resource processing:
+
+### 1. Semantic Queue
+
+Processes resources to generate:
+- **L0 (Abstract)**: High-level summary of the resource
+- **L1 (Overview)**: Detailed overview with key points
+
+### 2. Vector Queue
+
+Indexes resources for semantic search:
+- Generates embeddings for content chunks
+- Stores vectors in the vector database
+- Enables semantic similarity search
+
+<Note>
+  Both queues must complete before resources are fully searchable.
+</Note>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="When to use wait_processed()">
+    Use `wait_processed()` when:
+    - You need to search resources immediately after adding them
+    - You're adding resources in a script or initialization phase
+    - You need to verify processing completed successfully
+    - You're running tests that depend on resource availability
+  </Accordion>
+
+  <Accordion title="Batch processing">
+    For better performance when adding multiple resources:
+    ```python
+    # Add all resources first (fast)
+    for resource in resources:
+        client.add_resource(resource, wait=False)
+    
+    # Wait once for all to complete
+    client.wait_processed()
+    ```
+    This is more efficient than waiting after each individual resource.
+  </Accordion>
+
+  <Accordion title="Handling timeouts">
+    Set appropriate timeouts based on resource size:
+    - Small files (< 1MB): 10-30 seconds
+    - Medium files (1-100MB): 1-5 minutes
+    - Large files or directories: 5-30 minutes
+    
+    ```python
+    try:
+        client.wait_processed(timeout=300.0)  # 5 minutes
+    except TimeoutError:
+        # Handle timeout - processing continues in background
+        print("Still processing, check back later")
+    ```
+  </Accordion>
+
+  <Accordion title="Error handling">
+    Check for processing errors:
+    ```python
+    status = client.wait_processed()
+    
+    if status['semantic_queue']['error_count'] > 0:
+        for error in status['semantic_queue']['errors']:
+            print(f"Error: {error['message']}")
+    
+    if status['vector_queue']['error_count'] > 0:
+        for error in status['vector_queue']['errors']:
+            print(f"Vectorization error: {error['message']}")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Response Examples
+
+<ResponseExample>
+```json All Complete
+{
+  "status": "ok",
+  "result": {
+    "semantic_queue": {
+      "processed": 15,
+      "error_count": 0,
+      "errors": []
+    },
+    "vector_queue": {
+      "processed": 15,
+      "error_count": 0,
+      "errors": []
+    }
+  },
+  "time": 3.2
+}
+```
+
+```json With Errors
+{
+  "status": "ok",
+  "result": {
+    "semantic_queue": {
+      "processed": 14,
+      "error_count": 1,
+      "errors": [
+        {"message": "Failed to parse corrupted.pdf: Invalid PDF structure"}
+      ]
+    },
+    "vector_queue": {
+      "processed": 14,
+      "error_count": 0,
+      "errors": []
+    }
+  },
+  "time": 2.8
+}
+```
+</ResponseExample>
+
+## Related Methods
+
+- [add_resource](/api/resources/add-resource) - Add resources (supports `wait` parameter)
+- [add_skill](/api/resources/add-skill) - Add skills (supports `wait` parameter)
+- [find](/api/retrieval/find) - Search resources after processing
+- [abstract](/api/filesystem/abstract) - Get L0 abstract (requires processing)
+- [overview](/api/filesystem/overview) - Get L1 overview (requires processing)

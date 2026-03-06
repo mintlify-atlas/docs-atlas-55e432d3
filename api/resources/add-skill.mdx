@@ -1,0 +1,275 @@
+---
+title: "add_skill"
+description: "Add skills to OpenViking for agent capabilities"
+---
+
+## Overview
+
+Add skills to OpenViking to extend agent capabilities. Skills can be provided as directories, files, strings, or structured data.
+
+<Info>
+  Skills are different from resources. Skills define **agent capabilities** (tools, actions, workflows), while resources contain **knowledge** (documents, code, media).
+</Info>
+
+## Method Signature
+
+<CodeGroup>
+```python Python SDK
+client.add_skill(
+    data: Any,
+    wait: bool = False,
+    timeout: Optional[float] = None
+) -> Dict[str, Any]
+```
+
+```bash HTTP API
+POST /api/v1/skills
+```
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="data" type="any" required>
+  Skill data in one of the following formats:
+  - **Directory path**: Path to a directory containing skill definition
+  - **File path**: Path to a skill file (Python, JSON, YAML)
+  - **String**: Skill definition as a string
+  - **Dictionary**: Structured skill data
+</ParamField>
+
+<ParamField path="wait" type="boolean" default="false">
+  Wait for vectorization and processing to complete before returning
+</ParamField>
+
+<ParamField path="timeout" type="float">
+  Timeout in seconds when `wait=True`
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string" required>
+  Either "success" or "error"
+</ResponseField>
+
+<ResponseField name="skill_uri" type="string">
+  Viking URI where the skill was stored (e.g., `viking://skills/my-skill/`)
+</ResponseField>
+
+<ResponseField name="errors" type="array">
+  List of errors encountered during processing (if any)
+</ResponseField>
+
+<ResponseField name="queue_status" type="object">
+  Queue processing status (only present when `wait=True`)
+  <Expandable title="queue_status properties">
+    <ResponseField name="processed" type="integer">
+      Number of items processed
+    </ResponseField>
+    <ResponseField name="error_count" type="integer">
+      Number of errors encountered
+    </ResponseField>
+    <ResponseField name="errors" type="array">
+      List of error messages
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+### Add Skill from Directory
+
+<CodeGroup>
+```python Python SDK
+import openviking as ov
+
+client = ov.OpenViking(path="./data")
+client.initialize()
+
+result = client.add_skill(
+    "./skills/web-search",
+    wait=True
+)
+print(f"Skill added: {result['skill_uri']}")
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/skills \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "data": "./skills/web-search",
+    "wait": true
+  }'
+```
+</CodeGroup>
+
+### Add Skill from File
+
+<CodeGroup>
+```python Python SDK
+result = client.add_skill(
+    "./skills/calculator.py",
+    wait=True
+)
+```
+
+```bash HTTP API
+# For file uploads, use the temp_upload endpoint first
+curl -X POST http://localhost:1933/api/v1/resources/temp_upload \
+  -H "X-API-Key: your-key" \
+  -F "file=@./skills/calculator.py"
+
+# Then add the skill using the temp_path
+curl -X POST http://localhost:1933/api/v1/skills \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "temp_path": "/tmp/upload_abc123.py",
+    "wait": true
+  }'
+```
+</CodeGroup>
+
+### Add Skill from Dictionary
+
+<CodeGroup>
+```python Python SDK
+skill_definition = {
+    "name": "code_analyzer",
+    "description": "Analyze code quality and complexity",
+    "functions": [
+        {
+            "name": "analyze_complexity",
+            "description": "Calculate cyclomatic complexity",
+            "parameters": {
+                "code": {"type": "string", "description": "Source code to analyze"}
+            }
+        }
+    ]
+}
+
+result = client.add_skill(skill_definition, wait=True)
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/skills \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "data": {
+      "name": "code_analyzer",
+      "description": "Analyze code quality and complexity",
+      "functions": [
+        {
+          "name": "analyze_complexity",
+          "description": "Calculate cyclomatic complexity",
+          "parameters": {
+            "code": {"type": "string", "description": "Source code to analyze"}
+          }
+        }
+      ]
+    },
+    "wait": true
+  }'
+```
+</CodeGroup>
+
+### Add Multiple Skills
+
+<CodeGroup>
+```python Python SDK
+# Add multiple skills without waiting
+skills = [
+    "./skills/web-search",
+    "./skills/calculator",
+    "./skills/file-ops"
+]
+
+for skill in skills:
+    client.add_skill(skill, wait=False)
+
+# Wait for all to complete
+status = client.wait_processed()
+print(f"All skills processed: {status}")
+```
+</CodeGroup>
+
+## Response Example
+
+<ResponseExample>
+```json Success Response
+{
+  "status": "ok",
+  "result": {
+    "status": "success",
+    "skill_uri": "viking://skills/web-search/",
+    "errors": [],
+    "queue_status": {
+      "semantic_queue": {
+        "processed": 5,
+        "error_count": 0,
+        "errors": []
+      },
+      "vector_queue": {
+        "processed": 5,
+        "error_count": 0,
+        "errors": []
+      }
+    }
+  },
+  "time": 0.3
+}
+```
+</ResponseExample>
+
+## Skill Structure
+
+A typical skill directory structure:
+
+```
+skills/web-search/
+├── skill.yaml          # Skill metadata and configuration
+├── functions.py        # Skill implementation
+├── requirements.txt    # Dependencies
+└── README.md          # Documentation
+```
+
+### skill.yaml Example
+
+```yaml
+name: web_search
+description: Search the web for information
+version: 1.0.0
+
+functions:
+  - name: search
+    description: Perform a web search
+    parameters:
+      query:
+        type: string
+        description: Search query
+        required: true
+      max_results:
+        type: integer
+        description: Maximum number of results
+        default: 10
+```
+
+## Processing
+
+When you add a skill:
+
+1. **Validation**: Skill structure and syntax are validated
+2. **Storage**: Skill is stored in `viking://skills/` scope
+3. **Indexing**: Skill documentation is indexed for semantic search
+4. **Registration**: Skill becomes available to agents
+
+<Note>
+  Use `wait=True` to ensure the skill is fully processed before agents try to use it.
+</Note>
+
+## Related Methods
+
+- [wait_processed](/api/resources/wait-processed) - Wait for async processing
+- [add_resource](/api/resources/add-resource) - Add resources instead of skills
+- [ls](/api/filesystem/ls) - List added skills at `viking://skills/`

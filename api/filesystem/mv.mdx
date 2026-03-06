@@ -1,0 +1,111 @@
+---
+title: "mv"
+description: "Move or rename file or directory"
+---
+
+Move or rename a file or directory to a new Viking URI.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Rename a directory
+client.mv(
+    "viking://resources/old-name/",
+    "viking://resources/new-name/"
+)
+
+# Move a file to a different directory
+client.mv(
+    "viking://resources/docs/temp.md",
+    "viking://resources/archive/temp.md"
+)
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/fs/mv \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "from_uri": "viking://resources/old-name/",
+    "to_uri": "viking://resources/new-name/"
+  }'
+```
+</CodeGroup>
+
+<RequestExample>
+```json
+POST /api/v1/fs/mv
+
+{
+  "from_uri": "viking://resources/old-name/",
+  "to_uri": "viking://resources/new-name/"
+}
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField body="from_uri" type="string" required>
+  Source Viking URI (file or directory to move)
+</ParamField>
+
+<ParamField body="to_uri" type="string" required>
+  Destination Viking URI (new location and/or name)
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Result object containing source and destination URIs
+  
+  <Expandable title="properties">
+    <ResponseField name="from" type="string">
+      Source Viking URI
+    </ResponseField>
+    <ResponseField name="to" type="string">
+      Destination Viking URI
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": {
+    "from": "viking://resources/old-name/",
+    "to": "viking://resources/new-name/"
+  },
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking mv viking://resources/old-name/ viking://resources/new-name/
+```
+
+## Notes
+
+- Both files and directories can be moved
+- The operation is atomic
+- If the destination already exists, it will be overwritten
+- All metadata and relations are preserved
+- Parent directories of the destination are created automatically if needed

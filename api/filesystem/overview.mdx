@@ -1,0 +1,91 @@
+---
+title: "overview"
+description: "Read L1 overview"
+---
+
+Read the L1 overview of a directory. This provides a structured, medium-length summary of directory contents, more detailed than the abstract but more concise than full content.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Get overview of a directory
+overview = client.overview("viking://resources/docs/")
+print(f"Overview:\n{overview}")
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X GET "http://localhost:1933/api/v1/content/overview?uri=viking://resources/docs/" \
+  -H "X-API-Key: your-key"
+```
+</CodeGroup>
+
+<RequestExample>
+```http
+GET /api/v1/content/overview?uri=viking://resources/docs/
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  Viking URI (must be a directory)
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="string">
+  The L1 overview content (typically markdown-formatted)
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": "## docs/\n\nContains API documentation and guides:\n\n- **auth/**: Authentication and authorization\n- **api/**: REST API reference\n- **guides/**: Usage guides and tutorials\n\nSee individual sections for details.",
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking overview viking://resources/docs/
+```
+
+## Context Layers
+
+OpenViking provides three hierarchical levels of content:
+
+- **L0 (Abstract)**: ~100 token summary via [`abstract()`](/api/filesystem/abstract)
+- **L1 (Overview)**: Structured overview via `overview()` (this method)
+- **L2 (Full)**: Complete content via [`read()`](/api/filesystem/read)
+
+The overview layer is ideal for:
+- Understanding directory structure
+- Getting a medium-detail summary without reading all files
+- Agent context that needs more detail than abstract but less than full content
+
+## Implementation Details
+
+The overview is stored in a `.overview.md` file within the directory. If not present, it's generated automatically from the directory contents.
+
+## Error Cases
+
+- Returns error if the URI points to a file (use [`read()`](/api/filesystem/read) for files)
+- Returns error if the directory doesn't exist

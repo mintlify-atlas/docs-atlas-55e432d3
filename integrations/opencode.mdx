@@ -1,0 +1,341 @@
+---
+title: OpenCode Integration
+description: Semantic code search plugin for OpenCode AI coding assistant
+icon: code
+---
+
+The OpenViking plugin for [OpenCode](https://opencode.ai) provides semantic search across your indexed repositories. Once installed, the AI can search through any repo you've added to OpenViking, understanding concepts and intent rather than just matching keywords.
+
+## Prerequisites
+
+- **OpenCode** installed
+- **OpenViking** installed: `pip install openviking --upgrade --force-reinstall`
+- **OpenViking CLI** configured at `~/.openviking/ovcli.conf`
+- **OpenViking Server** running with `~/.openviking/ov.conf`
+
+## Installation
+
+<Steps>
+
+<Step title="Install OpenViking">
+```bash
+pip install openviking --upgrade --force-reinstall
+```
+</Step>
+
+<Step title="Configure Server">
+Create `~/.openviking/ov.conf`:
+
+```json
+{
+  "storage": {
+    "workspace": "/path/to/your/workspace"
+  },
+  "embedding": {
+    "dense": {
+      "provider": "openai",
+      "model": "text-embedding-3-large",
+      "api_key": "your-api-key",
+      "api_base": "https://api.openai.com/v1",
+      "dimension": 3072
+    },
+    "max_concurrent": 100
+  },
+  "vlm": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "api_key": "your-api-key",
+    "api_base": "https://api.openai.com/v1"
+  }
+}
+```
+
+<Note>
+For Volcengine, Anthropic, DeepSeek, Ollama, and other providers, see the [Configuration Reference](/core-concepts/configuration).
+</Note>
+</Step>
+
+<Step title="Start OpenViking Server">
+```bash
+openviking-server --config ~/.openviking/ov.conf > /tmp/openviking.log 2>&1 &
+```
+
+Verify it's running:
+```bash
+ov health
+```
+</Step>
+
+<Step title="Add Plugin to OpenCode">
+Edit `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "plugin": ["openviking-opencode"]
+}
+```
+
+Restart OpenCode — the skill is installed automatically.
+</Step>
+
+</Steps>
+
+## Usage
+
+### Index a Repository
+
+Simply ask in the chat:
+
+```
+Add https://github.com/tiangolo/fastapi to OpenViking
+```
+
+The AI will execute:
+```bash
+ov add-resource https://github.com/tiangolo/fastapi --to viking://resources/ --timeout 300
+```
+
+Indexing runs in the background. Check status:
+```bash
+ov observer queue
+```
+
+<Info>
+**Indexing Times:**
+- Small repos (< 100 files): 2–5 minutes
+- Medium repos (100–500 files): 5–20 minutes
+- Large repos (500+ files): 20–60+ minutes
+</Info>
+
+### Search Indexed Repos
+
+Once indexed, searches happen automatically when relevant:
+
+```
+How does FastAPI handle dependency injection?
+```
+
+The AI will:
+1. Detect you're asking about an indexed repo (FastAPI)
+2. Load the `openviking` skill
+3. Run semantic search: `ov find "dependency injection" --uri viking://resources/fastapi --limit 10`
+4. Read relevant files and answer your question
+
+### Explicit Search
+
+You can also trigger searches explicitly:
+
+```
+Use OpenViking to find how JWT tokens are verified in FastAPI
+```
+
+### Browse Indexed Repos
+
+```
+List all repos in OpenViking
+```
+
+Executes:
+```bash
+ov ls viking://resources/
+```
+
+## How It Works
+
+### Directory Structure
+
+OpenViking organizes code in a virtual filesystem:
+
+```
+viking://
+└── resources/
+    ├── fastapi/               ← repo A
+    │   ├── fastapi/
+    │   │   ├── routing.py
+    │   │   └── dependencies/
+    │   └── tests/
+    └── requests/              ← repo B
+        ├── requests/
+        └── tests/
+```
+
+Each directory has AI-generated summaries:
+- `abstract`: One-line summary for quick scanning
+- `overview`: Detailed breakdown of purpose and structure
+
+### Search Types
+
+The plugin uses three search strategies:
+
+| Command | When to Use | Example |
+|---------|------------|----------|
+| `ov find` | Concept/intent search | "dependency injection", "rate limiting logic" |
+| `ov grep` | Exact keyword/symbol | Function names, class names, error strings |
+| `ov glob` | File enumeration | All `*.py` files, all test files |
+
+**Examples:**
+
+```bash
+# Semantic search
+ov find "JWT authentication" --uri viking://resources/fastapi --limit 10
+ov find "how tokens are refreshed" --uri viking://resources/fastapi/fastapi/security
+
+# Keyword search
+ov grep "verify_token" --uri viking://resources/fastapi
+ov grep "class.*Session" --uri viking://resources/requests
+
+# File patterns
+ov glob "**/*.py" --uri viking://resources/fastapi
+ov glob "**/test_*.py" --uri viking://resources/fastapi/tests
+```
+
+### Context Injection
+
+When indexed repos are available, the plugin injects context into the system prompt:
+
+```markdown
+## OpenViking — Indexed Code Repositories
+
+The following repos are semantically indexed and searchable.
+When the user asks about any of these projects, you MUST use the openviking skill:
+
+- **fastapi** (viking://resources/fastapi)
+  A modern, fast web framework for building APIs with Python 3.7+
+  
+- **requests** (viking://resources/requests)
+  Python HTTP library for humans
+```
+
+This ensures the AI knows what's available and when to use it.
+
+## Advanced Features
+
+### Narrow Search Scope
+
+For faster, more precise results, narrow the URI scope:
+
+```bash
+# Instead of searching entire repo:
+ov find "token refresh" --uri viking://resources/fastapi
+
+# Search specific subdirectory:
+ov find "token refresh" --uri viking://resources/fastapi/fastapi/security
+```
+
+### Read Content
+
+```bash
+# Get directory summaries
+ov abstract viking://resources/fastapi/fastapi/dependencies/   # one-line
+ov overview viking://resources/fastapi/fastapi/dependencies/   # detailed
+
+# Read file content
+ov read viking://resources/fastapi/fastapi/dependencies/utils.py
+ov read viking://resources/fastapi/fastapi/dependencies/utils.py --offset 100 --limit 50
+```
+
+### Remove Repository
+
+```bash
+ov rm viking://resources/fastapi --recursive
+```
+
+<Warning>
+This permanently deletes the repo and all indexed content. The AI will confirm before executing.
+</Warning>
+
+## Configuration
+
+### Auto-Start Server
+
+The plugin automatically starts the OpenViking server if:
+- `ov` command is installed
+- `~/.openviking/ov.conf` exists
+- Server is not already running
+
+It waits up to 30 seconds for the server to become healthy.
+
+### CLI Config
+
+Create `~/.openviking/ovcli.conf`:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "timeout": 60.0,
+  "output": "table"
+}
+```
+
+The plugin will auto-create this if missing.
+
+## Troubleshooting
+
+<AccordionGroup>
+
+<Accordion title="Command not found: ov">
+OpenViking CLI is not installed:
+
+```bash
+pip install openviking --upgrade --force-reinstall
+```
+</Accordion>
+
+<Accordion title="Connection error">
+Server is not running. Check if `~/.openviking/ov.conf` exists:
+
+```bash
+# If config exists, start server:
+openviking-server --config ~/.openviking/ov.conf > /tmp/openviking.log 2>&1 &
+
+# Wait for health check:
+for i in $(seq 1 10); do ov health 2>/dev/null && break; sleep 3; done
+```
+
+If config doesn't exist, create it first (see Installation step 2).
+</Accordion>
+
+<Accordion title="Skill not loading">
+Verify the skill was installed:
+
+```bash
+ls -la ~/.config/opencode/skills/openviking/SKILL.md
+```
+
+If missing, reinstall the plugin or manually copy the skill file from the OpenViking repo.
+</Accordion>
+
+<Accordion title="Searches return no results">
+Check if the repo is indexed:
+
+```bash
+ov ls viking://resources/
+```
+
+If your repo is missing, add it:
+```bash
+ov add-resource https://github.com/owner/repo --to viking://resources/ --timeout 300
+```
+</Accordion>
+
+</AccordionGroup>
+
+## Example Workflow
+
+```
+You: Add https://github.com/encode/starlette to OpenViking
+AI: [Executes add-resource command]
+    Repository is being indexed. This will take 5-10 minutes.
+    
+You: How does Starlette handle middleware?
+AI: [Automatically searches OpenViking]
+    Starlette uses a middleware stack pattern. Here's how it works...
+    
+    [Shows relevant code from starlette/middleware/base.py]
+```
+
+## See Also
+
+- [OpenCode Documentation](https://opencode.ai/docs)
+- [Semantic Search](/core-concepts/semantic-search)
+- [Adding Resources](/guides/adding-resources)

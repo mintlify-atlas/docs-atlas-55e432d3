@@ -1,0 +1,818 @@
+---
+title: CLI Usage
+description: Complete command-line interface guide for OpenViking with all commands and examples
+---
+
+The OpenViking CLI (`ov`) provides a powerful command-line interface for managing resources, searching, and interacting with OpenViking.
+
+## Installation
+
+<Tabs>
+  <Tab title="Quick Install (Linux/macOS)">
+    ```bash
+    curl -fsSL https://raw.githubusercontent.com/volcengine/OpenViking/main/crates/ov_cli/install.sh | bash
+    ```
+  </Tab>
+  
+  <Tab title="From Source">
+    ```bash
+    # Requires Rust >= 1.88
+    cargo install --path crates/ov_cli
+    ```
+  </Tab>
+  
+  <Tab title="Via Python Package">
+    ```bash
+    pip install openviking
+    # CLI binary is bundled in the wheel
+    ```
+  </Tab>
+</Tabs>
+
+## Configuration
+
+Create `~/.openviking/ovcli.conf`:
+
+```json
+{
+  "url": "http://localhost:1933",
+  "api_key": "your-api-key",
+  "agent_id": "my-agent",
+  "timeout": 60.0,
+  "output": "table",
+  "echo_command": true
+}
+```
+
+| Field | Description | Default |
+|-------|-------------|------|
+| `url` | Server URL | (required) |
+| `api_key` | API key for authentication | `null` |
+| `agent_id` | Agent identifier | `null` |
+| `timeout` | Request timeout in seconds | `60.0` |
+| `output` | Output format: `"table"` or `"json"` | `"table"` |
+| `echo_command` | Echo command before execution | `true` |
+
+<Tip>
+You can also set `OPENVIKING_CLI_CONFIG_FILE` environment variable to use a custom config path.
+</Tip>
+
+## Quick Start
+
+```bash
+# Add a resource
+ov add-resource https://raw.githubusercontent.com/volcengine/OpenViking/refs/heads/main/docs/en/about/01-about-us.md --wait
+
+# List contents
+ov ls viking://resources
+
+# Semantic search
+ov find "what is openviking"
+
+# Get file tree
+ov tree viking://resources
+
+# Read content
+ov read viking://resources/...
+```
+
+## Global Options
+
+These options work with all commands:
+
+```bash
+ov [OPTIONS] <COMMAND>
+```
+
+| Option | Description |
+|--------|-------------|
+| `--output <FORMAT>` | Output format: `table` or `json` |
+| `-o <FORMAT>` | Short form of `--output` |
+| `--help` | Show help information |
+| `--version` | Show version |
+
+**Examples:**
+```bash
+# JSON output
+ov --output json ls viking://
+ov -o json ls viking://
+
+# Table output (default)
+ov --output table ls viking://
+```
+
+## Resource Management
+
+### add-resource
+
+Add a local file, directory, or URL to OpenViking.
+
+```bash
+ov add-resource <PATH> [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--target <URI>` | Target path in VikingFS |
+| `--reason <TEXT>` | Context/reason for adding |
+| `--instruction <TEXT>` | Processing instruction |
+| `--wait` | Wait for processing to complete |
+| `--timeout <SECONDS>` | Wait timeout (default: 300) |
+| `--no-index` | Skip vector indexing |
+| `--summarize` | Generate summary |
+| `--ignore-dirs <DIRS>` | Comma-separated dirs to ignore |
+| `--exclude <PATTERNS>` | Comma-separated file patterns to exclude |
+
+<Accordion title="Examples">
+```bash
+# Add URL and wait
+ov add-resource https://example.com/docs --wait --timeout 60
+
+# Add local file
+ov add-resource ./README.md --reason "Project documentation"
+
+# Add directory with filters
+ov add-resource ./project \
+  --wait \
+  --timeout 600 \
+  --ignore-dirs "node_modules,.git" \
+  --exclude "*.log,*.tmp"
+
+# Add to specific target
+ov add-resource ./docs \
+  --target "kb/project-docs" \
+  --wait
+```
+</Accordion>
+
+### add-skill
+
+Add a skill to OpenViking.
+
+```bash
+ov add-skill <DATA> [OPTIONS]
+```
+
+**Options:**
+- `--wait` - Wait for processing
+- `--timeout <SECONDS>` - Wait timeout
+
+### export
+
+Export resource as .ovpack file.
+
+```bash
+ov export <URI> --to <PATH>
+```
+
+**Example:**
+```bash
+ov export viking://resources/docs --to ./backup/docs.ovpack
+```
+
+### import
+
+Import .ovpack file.
+
+```bash
+ov import <FILE> --target <URI> [OPTIONS]
+```
+
+**Options:**
+- `--force` - Overwrite existing resources
+- `--no-vectorize` - Skip vectorization
+
+**Example:**
+```bash
+ov import ./backup/docs.ovpack --target viking://resources/restored
+```
+
+## File System Operations
+
+### ls
+
+List directory contents.
+
+```bash
+ov ls <URI> [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--simple` | Show only paths |
+| `--recursive` | List recursively |
+
+<Accordion title="Examples">
+```bash
+# Basic listing
+ov ls viking://resources
+
+# Simple mode (paths only)
+ov ls viking://resources --simple
+
+# Recursive
+ov ls viking://resources --recursive
+
+# JSON output
+ov -o json ls viking://resources
+```
+</Accordion>
+
+### tree
+
+Get directory tree structure.
+
+```bash
+ov tree <URI>
+```
+
+**Example:**
+```bash
+ov tree viking://resources
+ov tree viking://resources/docs
+```
+
+### mkdir
+
+Create a directory.
+
+```bash
+ov mkdir <URI>
+```
+
+**Example:**
+```bash
+ov mkdir viking://resources/new-folder
+```
+
+### rm
+
+Remove a resource.
+
+```bash
+ov rm <URI> [OPTIONS]
+```
+
+**Options:**
+- `--recursive` - Remove directory recursively
+
+<Accordion title="Examples">
+```bash
+# Delete file
+ov rm viking://resources/example.md
+
+# Delete directory
+ov rm viking://resources/old-docs --recursive
+```
+</Accordion>
+
+### mv
+
+Move or rename a resource.
+
+```bash
+ov mv <FROM_URI> <TO_URI>
+```
+
+**Example:**
+```bash
+ov mv viking://resources/old.md viking://resources/new.md
+```
+
+### stat
+
+Get resource metadata.
+
+```bash
+ov stat <URI>
+```
+
+**Example:**
+```bash
+ov stat viking://resources/example.md
+```
+
+## Content Access
+
+### read
+
+Read L2 (full content).
+
+```bash
+ov read <URI> [OPTIONS]
+```
+
+**Options:**
+- `--offset <N>` - Start at line N
+- `--limit <N>` - Read N lines
+
+<Accordion title="Examples">
+```bash
+# Read entire file
+ov read viking://resources/example.md
+
+# Read with pagination
+ov read viking://resources/large.txt --offset 0 --limit 100
+```
+</Accordion>
+
+### abstract
+
+Read L0 abstract (~100 token summary).
+
+```bash
+ov abstract <URI>
+```
+
+**Example:**
+```bash
+ov abstract viking://resources/docs
+```
+
+### overview
+
+Read L1 overview (~2k token overview).
+
+```bash
+ov overview <URI>
+```
+
+**Example:**
+```bash
+ov overview viking://resources/docs
+```
+
+## Search Operations
+
+### find
+
+Semantic search (quick retrieval).
+
+```bash
+ov find <QUERY> [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--target <URI>` | Scope to directory |
+| `--limit <N>` | Max results (default: 10) |
+| `--threshold <FLOAT>` | Minimum score (0.0-1.0) |
+
+<Accordion title="Examples">
+```bash
+# Basic search
+ov find "how to deploy openviking"
+
+# With filters
+ov find "authentication guide" \
+  --target viking://resources/docs \
+  --limit 5 \
+  --threshold 0.7
+
+# JSON output for scripting
+ov -o json find "installation steps" | jq '.result.resources[].uri'
+```
+</Accordion>
+
+### search
+
+Context-aware search with session.
+
+```bash
+ov search <QUERY> [OPTIONS]
+```
+
+**Options:**
+- `--session-id <ID>` - Use session context
+- `--target <URI>` - Scope to directory
+- `--limit <N>` - Max results
+- `--threshold <FLOAT>` - Minimum score
+
+**Example:**
+```bash
+# Create session first
+SESSION=$(ov -o json session new | jq -r '.result.session_id')
+
+# Add context
+ov session add-message --session-id $SESSION --role user --content "Tell me about OpenViking"
+
+# Context-aware search
+ov search "how to use it" --session-id $SESSION
+```
+
+### grep
+
+Content pattern search (regex).
+
+```bash
+ov grep <URI> <PATTERN> [OPTIONS]
+```
+
+**Options:**
+- `--case-insensitive` - Case-insensitive search
+
+<Accordion title="Examples">
+```bash
+# Case-sensitive
+ov grep viking://resources "OpenViking"
+
+# Case-insensitive
+ov grep viking://resources "openviking" --case-insensitive
+
+# Search in specific directory
+ov grep viking://resources/docs "API"
+```
+</Accordion>
+
+### glob
+
+File pattern matching.
+
+```bash
+ov glob <PATTERN> [OPTIONS]
+```
+
+**Options:**
+- `--uri <URI>` - Root URI (default: `viking://`)
+
+<Accordion title="Examples">
+```bash
+# Find all markdown files
+ov glob "**/*.md"
+
+# Find in specific directory
+ov glob "**/*.py" --uri viking://resources/code
+
+# Find config files
+ov glob "**/config*.json"
+```
+</Accordion>
+
+## Session Management
+
+### session new
+
+Create a new session.
+
+```bash
+ov session new
+```
+
+**Example:**
+```bash
+# Create and capture ID
+SESSION=$(ov -o json session new | jq -r '.result.session_id')
+echo $SESSION
+```
+
+### session list
+
+List all sessions.
+
+```bash
+ov session list
+```
+
+### session get
+
+Get session details.
+
+```bash
+ov session get <SESSION_ID>
+```
+
+**Example:**
+```bash
+ov session get abc123
+```
+
+### session delete
+
+Delete a session.
+
+```bash
+ov session delete <SESSION_ID>
+```
+
+**Example:**
+```bash
+ov session delete abc123
+```
+
+### session add-message
+
+Add message to session.
+
+```bash
+ov session add-message [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--session-id <ID>` | Session ID (required) |
+| `--role <ROLE>` | Message role: `user` or `assistant` (required) |
+| `--content <TEXT>` | Message content (required) |
+
+**Example:**
+```bash
+ov session add-message \
+  --session-id $SESSION \
+  --role user \
+  --content "Hello, OpenViking!"
+```
+
+### session commit
+
+Commit session (archive and extract memories).
+
+```bash
+ov session commit <SESSION_ID>
+```
+
+**Example:**
+```bash
+ov session commit $SESSION
+```
+
+## Relations
+
+### relations
+
+List relations for a resource.
+
+```bash
+ov relations <URI>
+```
+
+**Example:**
+```bash
+ov relations viking://resources/doc.md
+```
+
+### link
+
+Create relation link.
+
+```bash
+ov link <FROM_URI> <TO_URI> [OPTIONS]
+```
+
+**Options:**
+- `--reason <TEXT>` - Reason for linking
+
+**Example:**
+```bash
+ov link \
+  viking://resources/doc1.md \
+  viking://resources/doc2.md \
+  --reason "Related documentation"
+```
+
+### unlink
+
+Remove relation link.
+
+```bash
+ov unlink <FROM_URI> <TO_URI>
+```
+
+**Example:**
+```bash
+ov unlink viking://resources/doc1.md viking://resources/doc2.md
+```
+
+## System Commands
+
+### system wait
+
+Wait for processing queue to complete.
+
+```bash
+ov system wait [OPTIONS]
+```
+
+**Options:**
+- `--timeout <SECONDS>` - Max wait time
+
+**Example:**
+```bash
+# Wait for all processing
+ov system wait --timeout 300
+```
+
+### system status
+
+Get system status.
+
+```bash
+ov system status
+```
+
+**Example:**
+```bash
+ov system status
+ov -o json system status | jq '.result.is_healthy'
+```
+
+### system health
+
+Quick health check.
+
+```bash
+ov system health
+```
+
+### observer queue
+
+Get queue status.
+
+```bash
+ov observer queue
+```
+
+### observer vikingdb
+
+Get VikingDB status.
+
+```bash
+ov observer vikingdb
+```
+
+### observer vlm
+
+Get VLM status.
+
+```bash
+ov observer vlm
+```
+
+## Configuration Commands
+
+### config show
+
+Show current configuration.
+
+```bash
+ov config show
+```
+
+### config validate
+
+Validate configuration file.
+
+```bash
+ov config validate
+```
+
+## Scripting Examples
+
+### Batch Processing
+
+```bash
+#!/bin/bash
+
+# Add multiple resources
+for url in $(cat urls.txt); do
+  ov add-resource "$url" --wait --timeout 120
+done
+
+# Wait for all processing
+ov system wait --timeout 600
+
+# Export backup
+ov export viking://resources --to ./backup-$(date +%Y%m%d).ovpack
+```
+
+### Search and Extract
+
+```bash
+#!/bin/bash
+
+# Search and get URIs
+URIS=$(ov -o json find "installation guide" | jq -r '.result.resources[].uri')
+
+# Read content from each result
+for uri in $URIS; do
+  echo "=== $uri ==="
+  ov read "$uri"
+  echo
+done
+```
+
+### Session Workflow
+
+```bash
+#!/bin/bash
+
+# Create session
+SESSION=$(ov -o json session new | jq -r '.result.session_id')
+echo "Session: $SESSION"
+
+# Add messages
+ov session add-message \
+  --session-id "$SESSION" \
+  --role user \
+  --content "What is OpenViking?"
+
+ov session add-message \
+  --session-id "$SESSION" \
+  --role assistant \
+  --content "OpenViking is an agent-native context database."
+
+# Context-aware search
+ov search "how to install" --session-id "$SESSION"
+
+# Commit session
+ov session commit "$SESSION"
+```
+
+### Monitoring Script
+
+```bash
+#!/bin/bash
+
+# Check system health
+if ov -o json system health | jq -e '.result.healthy' > /dev/null; then
+  echo "✓ System healthy"
+else
+  echo "✗ System unhealthy"
+  ov -o json system status | jq '.result.errors'
+  exit 1
+fi
+
+# Check queue
+QUEUE_SIZE=$(ov -o json observer queue | jq -r '.result.queue_size // 0')
+echo "Queue size: $QUEUE_SIZE"
+
+if [ "$QUEUE_SIZE" -gt 100 ]; then
+  echo "WARNING: Large queue backlog"
+fi
+```
+
+## Output Format
+
+<Tabs>
+  <Tab title="Table (Default)">
+    ```bash
+    ov ls viking://resources
+    ```
+    
+    ```
+    ┌────────────────┬──────┬──────────┐
+    │ Name           │ Type │ Size     │
+    ├────────────────┼──────┼──────────┤
+    │ docs/          │ dir  │ -        │
+    │ README.md      │ file │ 1.2 KB   │
+    └────────────────┴──────┴──────────┘
+    ```
+  </Tab>
+  
+  <Tab title="JSON">
+    ```bash
+    ov -o json ls viking://resources
+    ```
+    
+    ```json
+    {
+      "status": "ok",
+      "result": [
+        {"name": "docs", "isDir": true},
+        {"name": "README.md", "isDir": false, "size": 1234}
+      ]
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+Use JSON output (`-o json`) for scripting and pipe to `jq` for processing:
+
+```bash
+ov -o json find "query" | jq '.result.resources[].uri'
+```
+</Tip>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Python SDK" icon="python" href="/guides/python-sdk">
+    Complete Python SDK reference
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    CLI configuration reference
+  </Card>
+  <Card title="Authentication" icon="key" href="/guides/authentication">
+    API key setup
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/guides/deployment">
+    Deploy OpenViking Server
+  </Card>
+</CardGroup>

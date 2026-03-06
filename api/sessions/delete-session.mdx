@@ -1,0 +1,307 @@
+---
+title: "Delete Session"
+api: "DELETE /api/v1/sessions/{session_id}"
+description: "Permanently delete a session and all its data"
+---
+
+Delete a conversation session and all associated data including messages, archives, and usage records.
+
+<Warning>
+This operation is **irreversible**. All session data including message history and archives will be permanently deleted.
+</Warning>
+
+## Request
+
+### Path Parameters
+
+<ParamField path="session_id" type="string" required>
+  The session ID to delete
+</ParamField>
+
+### Headers
+
+<ParamField header="X-API-Key" type="string" required>
+  Your OpenViking API key for authentication
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Response status (`ok` or `error`)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Deletion result
+  
+  <ResponseField name="session_id" type="string">
+    The deleted session identifier
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Request processing time in seconds
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE http://localhost:1933/api/v1/sessions/a1b2c3d4 \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python SDK
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Delete using rm (recursive required)
+client.rm("viking://session/a1b2c3d4/", recursive=True)
+
+print("Session deleted")
+
+# Or use the dedicated method
+client.delete_session("a1b2c3d4")
+```
+
+```python HTTP Client
+import requests
+
+response = requests.delete(
+    "http://localhost:1933/api/v1/sessions/a1b2c3d4",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+result = response.json()
+if result['status'] == 'ok':
+    print(f"Deleted session: {result['result']['session_id']}")
+```
+
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "session_id": "a1b2c3d4"
+  },
+  "time": 0.3
+}
+```
+
+## What Gets Deleted
+
+Deleting a session removes:
+
+1. **Active messages** - Current conversation messages
+2. **Message archives** - All `history/archive_N/` directories
+3. **Tool records** - Tool execution data in `tools/`
+4. **Session metadata** - `.abstract.md`, `.overview.md`, `.meta.json`
+5. **Relations** - Links to contexts and skills used
+
+<Note>
+Deleting a session does **NOT** delete:
+- Extracted memories (stored in `user/memories/` and `agent/memories/`)
+- Resources referenced during the session
+- Skills used in the session
+</Note>
+
+## Use Cases
+
+### Clean Up Old Sessions
+
+```python
+import openviking as ov
+from datetime import datetime, timedelta
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# List all sessions
+sessions = client.list_sessions()
+
+# Delete sessions older than 30 days
+for session in sessions:
+    session_id = session['session_id']
+    
+    # Get session details
+    sess = client.session(session_id=session_id)
+    sess.load()
+    
+    # Check age
+    age = datetime.now() - sess.created_at
+    if age > timedelta(days=30):
+        print(f"Deleting old session: {session_id}")
+        client.delete_session(session_id)
+```
+
+### Delete After Commit
+
+If you want to keep only memories and discard conversation history:
+
+```python
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+# Commit to extract memories first
+result = session.commit()
+print(f"Extracted {result['memories_extracted']} memories")
+
+# Now safe to delete the session
+client.delete_session(session.session_id)
+print("Session deleted, memories preserved")
+```
+
+### Batch Delete
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Delete multiple sessions
+session_ids_to_delete = ["abc123", "def456", "ghi789"]
+
+for session_id in session_ids_to_delete:
+    try:
+        client.delete_session(session_id)
+        print(f"Deleted: {session_id}")
+    except Exception as e:
+        print(f"Failed to delete {session_id}: {e}")
+```
+
+### Safe Delete with Confirmation
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+session_id = "a1b2c3d4"
+
+# Load session to show details
+session = client.session(session_id=session_id)
+session.load()
+
+print(f"Session: {session.session_id}")
+print(f"Messages: {len(session.messages)}")
+print(f"Turns: {session.stats.total_turns}")
+print(f"Archives: {session.stats.compression_count}")
+
+# Confirm before deleting
+confirm = input("Are you sure you want to delete this session? (yes/no): ")
+
+if confirm.lower() == 'yes':
+    client.delete_session(session_id)
+    print("Session deleted")
+else:
+    print("Deletion cancelled")
+```
+
+## Error Responses
+
+### Session Not Found
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Session a1b2c3d4 not found"
+  }
+}
+```
+
+### Insufficient Permissions
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "You do not have permission to delete this session"
+  }
+}
+```
+
+## Best Practices
+
+### Always Commit Before Deleting
+
+Extract memories before deletion:
+
+```python
+# Good: Commit first to preserve memories
+session.commit()
+client.delete_session(session_id)
+
+# Avoid: Deleting without committing loses all context
+client.delete_session(session_id)
+```
+
+### Check Session Content First
+
+```python
+# Load session to review content
+session = client.session(session_id="a1b2c3d4")
+session.load()
+
+if session.stats.memories_extracted == 0:
+    print("Warning: No memories extracted yet")
+    response = input("Commit before deleting? (yes/no): ")
+    if response == 'yes':
+        session.commit()
+
+client.delete_session(session.session_id)
+```
+
+### Implement Soft Delete
+
+Instead of immediate deletion, mark sessions as deleted:
+
+```python
+import openviking as ov
+from datetime import datetime
+
+client = ov.OpenViking(path="./my_data")
+client.initialize()
+
+# Add deletion marker instead of actual deletion
+session_uri = f"viking://session/a1b2c3d4"
+meta = {
+    "deleted": True,
+    "deleted_at": datetime.now().isoformat()
+}
+
+client._viking_fs.write_file(
+    f"{session_uri}/.deleted.json",
+    json.dumps(meta),
+    ctx=client.ctx
+)
+
+print("Session marked as deleted")
+
+# Later: Permanently delete marked sessions
+sessions = client.list_sessions()
+for sess in sessions:
+    try:
+        deleted_marker = client.read(f"{sess['uri']}/.deleted.json")
+        if deleted_marker:
+            client.delete_session(sess['session_id'])
+            print(f"Permanently deleted: {sess['session_id']}")
+    except:
+        pass  # No deletion marker
+```
+
+## Related Endpoints
+
+- [Create Session](/api/sessions/create-session) - Create a new session
+- [List Sessions](/api/sessions/list-sessions) - List all sessions
+- [Get Session](/api/sessions/get-session) - Get session details
+- [Commit Session](/api/sessions/commit-session) - Archive and extract memories before deletion

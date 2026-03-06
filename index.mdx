@@ -1,97 +1,212 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: OpenViking Documentation
+description: An open-source context database designed for AI Agents with filesystem-based management, hierarchical context loading, and semantic retrieval.
 ---
 
-## Setting up
+<div style={{
+  background: 'linear-gradient(135deg, #5d56fc 0%, #bd6cfc 100%)',
+  borderRadius: '12px',
+  padding: '60px 40px',
+  textAlign: 'center',
+  marginBottom: '40px'
+}}>
+  <h1 style={{
+    fontSize: '48px',
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: '20px',
+    lineHeight: '1.2'
+  }}>
+    OpenViking
+  </h1>
+  <p style={{
+    fontSize: '20px',
+    color: '#ffffff',
+    opacity: '0.95',
+    maxWidth: '700px',
+    margin: '0 auto 30px',
+    lineHeight: '1.6'
+  }}>
+    The Context Database for AI Agents
+  </p>
+  <p style={{
+    fontSize: '16px',
+    color: '#ffffff',
+    opacity: '0.9',
+    maxWidth: '800px',
+    margin: '0 auto'
+  }}>
+    Unify memory, resources, and skills through a filesystem paradigm. Enable hierarchical context delivery and self-evolving agents.
+  </p>
+</div>
 
-Get your documentation site up and running in minutes.
+## Why OpenViking?
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+In the AI era, data is abundant, but high-quality context is scarce. OpenViking solves the critical challenges developers face when building AI Agents:
 
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Context Fragmentation" icon="puzzle-piece">
+    Memory in code, resources in vector databases, skills scattered everywhere — OpenViking unifies them all under a single filesystem paradigm.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Context Explosion" icon="explosion">
+    Long-running Agent tasks generate massive context. OpenViking's L0/L1/L2 hierarchical loading prevents information loss while saving tokens.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Poor Retrieval Quality" icon="magnifying-glass">
+    Traditional RAG uses flat storage. OpenViking's directory recursive retrieval understands complete context with global perspective.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Context Opacity" icon="eye-slash">
+    Black-box retrieval makes debugging impossible. OpenViking provides visualized retrieval trajectories for full observability.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## Core Features
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Filesystem Paradigm" icon="folder-tree" href="/concepts/viking-uri">
+    Organize all context (Memory, Resources, Skills) as a virtual filesystem with `viking://` URIs. Use familiar commands like `ls`, `find`, `grep` to navigate context.
+  </Card>
+  <Card title="Hierarchical Loading" icon="layer-group" href="/concepts/context-layers">
+    Automatic L0/L1/L2 context processing: abstracts (~100 tokens), overviews (~2k tokens), and full details — loaded on demand to save costs.
+  </Card>
+  <Card title="Directory Recursive Retrieval" icon="arrows-split-up-and-left" href="/concepts/retrieval">
+    Intent analysis → directory positioning → fine exploration → recursive descent. Find semantically best-matching fragments with full context awareness.
+  </Card>
+  <Card title="Session Management" icon="clock-rotate-left" href="/concepts/session">
+    Built-in memory self-iteration. Extract 6-category memories (profile, preferences, entities, events, cases, patterns) from sessions automatically.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Get Started in Minutes
 
-## Need inspiration?
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install OpenViking and run your first example in 5 minutes
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Understand OpenViking's dual-layer storage and retrieval design
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete API for filesystem, search, and sessions
+  </Card>
+</CardGroup>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+## Installation
+
+<CodeGroup>
+
+```bash pip
+pip install openviking --upgrade
+```
+
+```bash uv
+uv pip install openviking
+```
+
+</CodeGroup>
+
+## Quick Example
+
+```python
+from openviking import OpenViking
+
+# Initialize client
+client = OpenViking(path="./data")
+
+# Add resources
+client.add_resource("https://github.com/volcengine/OpenViking")
+
+# Semantic search
+results = client.find("what is openviking")
+
+# Filesystem operations
+client.ls("viking://resources/")
+client.tree("viking://resources/volcengine/OpenViking", depth=2)
+
+# Session management
+session = client.session()
+session.add(role="user", content="How do I configure OpenViking?")
+session.add(role="assistant", content="You can configure OpenViking using ov.conf...")
+session.commit()  # Extracts memories automatically
+```
+
+## Community & Support
+
+<CardGroup cols={3}>
+  <Card title="GitHub" icon="github" href="https://github.com/volcengine/OpenViking">
+    Star the repo, report issues, and contribute
+  </Card>
+  <Card title="Discord" icon="discord" href="https://discord.com/invite/eHvx8E9XF3">
+    Join our community for support and discussions
+  </Card>
+  <Card title="X (Twitter)" icon="x-twitter" href="https://x.com/openvikingai">
+    Follow us for updates and announcements
+  </Card>
+</CardGroup>
+
+## Integration Examples
+
+OpenViking integrates seamlessly with popular AI agent frameworks:
+
+<CardGroup cols={2}>
+  <Card title="OpenClaw Plugin" icon="puzzle-piece" href="/integrations/openclaw">
+    Boost OpenClaw task completion by 49% with 91% lower token costs
+  </Card>
+  <Card title="Claude Desktop MCP" icon="desktop" href="/integrations/claude-desktop">
+    Connect OpenViking to Claude Desktop as a Model Context Protocol server
+  </Card>
+  <Card title="OpenCode Integration" icon="code" href="/integrations/opencode">
+    Use OpenViking as context management for coding agents
+  </Card>
+  <Card title="MCP Server" icon="server" href="/integrations/mcp">
+    Expose OpenViking functionality through Model Context Protocol
+  </Card>
+</CardGroup>
+
+## What Makes OpenViking Different?
+
+Traditional RAG systems treat context as flat text chunks. OpenViking treats context as a **hierarchical filesystem**:
+
+| Traditional RAG | OpenViking |
+|----------------|-----------|
+| Flat vector chunks | Hierarchical directory structure |
+| Single-pass retrieval | Directory recursive retrieval |
+| Fixed context window | L0/L1/L2 progressive loading |
+| Opaque retrieval | Visualized retrieval trajectories |
+| Static memory | Self-evolving 6-category memory |
+
+## Real-World Performance
+
+Based on LoCoMo10 benchmark (1,540 long-range dialogue cases):
+
+| Configuration | Task Completion | Input Tokens |
+|--------------|----------------|--------------|
+| OpenClaw (baseline) | 35.65% | 24.6M |
+| OpenClaw + LanceDB | 44.55% | 51.6M |
+| **OpenClaw + OpenViking** | **52.08%** | **4.3M** |
+
+**Results:** 49% improvement over baseline with 83% reduction in token costs.
+
+## Open Source & Apache 2.0
+
+OpenViking is fully open source under the Apache 2.0 license. We welcome contributions from the community.
+
+<Info>
+  **4,761 GitHub stars** and growing. Join the community building the future of AI Agent context management.
+</Info>
+
+## Next Steps
+
+<Steps>
+  <Step title="Install OpenViking">
+    Follow the [Quickstart Guide](/quickstart) to install and configure OpenViking
+  </Step>
+  <Step title="Learn Core Concepts">
+    Understand [Architecture](/concepts/architecture), [Context Types](/concepts/context-types), and [Viking URI](/concepts/viking-uri)
+  </Step>
+  <Step title="Explore Integrations">
+    Connect OpenViking to [OpenClaw](/integrations/openclaw) or [Claude Desktop](/integrations/claude-desktop)
+  </Step>
+  <Step title="Deploy to Production">
+    Follow the [Server Deployment Guide](/server-deployment) for production setup
+  </Step>
+</Steps>

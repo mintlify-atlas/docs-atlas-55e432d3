@@ -1,0 +1,150 @@
+---
+title: "glob"
+description: "Match files by pattern"
+---
+
+Find files matching a glob pattern (e.g., `**/*.md`, `src/**/*.py`).
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Find all markdown files
+results = client.glob("**/*.md", "viking://resources/")
+print(f"Found {results['count']} markdown files:")
+for uri in results['matches']:
+    print(f"  {uri}")
+
+# Find all Python files
+results = client.glob("**/*.py", "viking://resources/")
+print(f"Found {results['count']} Python files")
+
+# Find files in a specific subdirectory
+results = client.glob("docs/**/*.md", "viking://resources/")
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash cURL
+curl -X POST http://localhost:1933/api/v1/search/glob \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "pattern": "**/*.md",
+    "uri": "viking://resources/"
+  }'
+```
+</CodeGroup>
+
+<RequestExample>
+```json
+POST /api/v1/search/glob
+
+{
+  "pattern": "**/*.md",
+  "uri": "viking://resources/"
+}
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField body="pattern" type="string" required>
+  Glob pattern to match files against
+</ParamField>
+
+<ParamField body="uri" type="string" default="viking://">
+  Starting Viking URI to search from
+</ParamField>
+
+<ParamField body="node_limit" type="integer" optional>
+  Maximum number of files to match
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Match results
+  
+  <Expandable title="properties">
+    <ResponseField name="matches" type="array">
+      Array of matching Viking URIs (strings)
+    </ResponseField>
+    
+    <ResponseField name="count" type="integer">
+      Total number of matches found
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": {
+    "matches": [
+      "viking://resources/docs/api.md",
+      "viking://resources/docs/guide.md",
+      "viking://resources/README.md"
+    ],
+    "count": 3
+  },
+  "time": 0.15
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+openviking glob "**/*.md" [--uri viking://resources/]
+```
+
+## Pattern Syntax
+
+Glob patterns support the following wildcards:
+
+| Pattern | Description | Example |
+|---------|-------------|----------|
+| `*` | Match any characters (except `/`) | `*.md` matches `README.md` |
+| `**` | Match any characters including `/` (recursive) | `**/*.py` matches all Python files |
+| `?` | Match single character | `file?.txt` matches `file1.txt` |
+| `[abc]` | Match any character in brackets | `[Rr]eadme.md` |
+| `{a,b}` | Match any of the alternatives | `*.{js,ts}` |
+
+### Common Patterns
+
+```python
+# All markdown files recursively
+client.glob("**/*.md")
+
+# Python files in src directory
+client.glob("src/**/*.py")
+
+# All TypeScript and JavaScript files
+client.glob("**/*.{ts,js}")
+
+# Files starting with 'test'
+client.glob("**/test*.py")
+
+# Direct children only (not recursive)
+client.glob("*.md")
+```
+
+## Performance Notes
+
+- `**` patterns traverse recursively and may be slower on large directories
+- Use `node_limit` to restrict the number of matches
+- More specific patterns (e.g., `src/**/*.py`) are faster than broad patterns (e.g., `**/*.py`)

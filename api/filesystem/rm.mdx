@@ -1,0 +1,102 @@
+---
+title: "rm"
+description: "Remove file or directory"
+---
+
+Delete a file or directory from the Viking filesystem.
+
+## Python SDK
+
+```python
+from openviking import OpenViking
+
+client = OpenViking()
+
+# Remove a single file
+client.rm("viking://resources/docs/old.md")
+
+# Remove directory recursively
+client.rm("viking://resources/old-project/", recursive=True)
+```
+
+## HTTP API
+
+<CodeGroup>
+```bash Remove File
+curl -X DELETE "http://localhost:1933/api/v1/fs?uri=viking://resources/docs/old.md" \
+  -H "X-API-Key: your-key"
+```
+
+```bash Remove Directory
+curl -X DELETE "http://localhost:1933/api/v1/fs?uri=viking://resources/old-project/&recursive=true" \
+  -H "X-API-Key: your-key"
+```
+</CodeGroup>
+
+<RequestExample>
+```http
+DELETE /api/v1/fs?uri=viking://resources/docs/old.md
+```
+</RequestExample>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  Viking URI of the file or directory to remove
+</ParamField>
+
+<ParamField path="recursive" type="boolean" default="false">
+  Remove directory and all its contents recursively
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="string">
+  Operation status (`ok` on success)
+</ResponseField>
+
+<ResponseField name="result" type="object">
+  Result object containing the removed URI
+  
+  <Expandable title="properties">
+    <ResponseField name="uri" type="string">
+      Viking URI of the removed resource
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="time" type="number">
+  Execution time in seconds
+</ResponseField>
+
+<ResponseExample>
+```json
+{
+  "status": "ok",
+  "result": {
+    "uri": "viking://resources/docs/old.md"
+  },
+  "time": 0.1
+}
+```
+</ResponseExample>
+
+## CLI
+
+```bash
+# Remove file
+openviking rm viking://resources/old.md
+
+# Remove directory recursively
+openviking rm viking://resources/old-project/ --recursive
+```
+
+## Error Cases
+
+- Attempting to remove a non-empty directory without `recursive=true` will fail
+- Removing a non-existent resource returns an error
+- The operation cannot be undone
+
+<Warning>
+  This operation permanently deletes resources. Use with caution, especially with `recursive=true`.
+</Warning>

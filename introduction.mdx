@@ -1,0 +1,207 @@
+---
+title: Introduction
+description: OpenViking is an open-source context database designed specifically for AI Agents
+---
+
+## What is OpenViking?
+
+**OpenViking** is an open-source **Context Database** designed specifically for AI Agents. It revolutionizes how AI agents manage and retrieve context by introducing a **file system paradigm** that unifies memories, resources, and skills into a coherent, hierarchical structure.
+
+<CardGroup cols={2}>
+  <Card title="Context Database" icon="database">
+    Unified storage for memories, resources, and skills using a filesystem paradigm
+  </Card>
+  <Card title="Hierarchical Retrieval" icon="folder-tree">
+    Directory recursive retrieval for better context understanding and accuracy
+  </Card>
+  <Card title="Tiered Loading" icon="layer-group">
+    L0/L1/L2 architecture reduces token consumption by loading context on-demand
+  </Card>
+  <Card title="Self-Iteration" icon="rotate">
+    Automatic session management enables agents to become smarter with use
+  </Card>
+</CardGroup>
+
+## Why OpenViking?
+
+In the AI era, data is abundant, but high-quality context is scarce. When building AI Agents, developers often face critical challenges:
+
+### The Problems
+
+<AccordionGroup>
+  <Accordion title="Context Fragmentation" icon="puzzle-piece">
+    Memory scattered in code, resources distributed across vector databases, and skills stored in various locations make unified management nearly impossible.
+  </Accordion>
+  
+  <Accordion title="Context Explosion" icon="explosion">
+    Long-running agent tasks generate massive amounts of context with each execution. Simple truncation or compression leads to critical information loss.
+  </Accordion>
+  
+  <Accordion title="Poor Retrieval Quality" icon="magnifying-glass">
+    Traditional RAG systems use flat storage, lacking global perspective and struggling to understand complete context relationships.
+  </Accordion>
+  
+  <Accordion title="Context Opacity" icon="eye-slash">
+    Traditional RAG's implicit retrieval pipeline is like a black box, making debugging and optimization extremely difficult.
+  </Accordion>
+  
+  <Accordion title="Limited Memory Iteration" icon="memory">
+    Current memory systems only record user interactions, lacking agent-related task memories and experience accumulation.
+  </Accordion>
+</AccordionGroup>
+
+### The OpenViking Solution
+
+OpenViking addresses these challenges with five innovative approaches:
+
+<Steps>
+  <Step title="Filesystem Management Paradigm">
+    Unified context management of memories, resources, and skills based on a filesystem paradigm. All context is organized under the `viking://` protocol with unique URIs.
+    
+    ```
+    viking://
+    ├── resources/              # Project docs, repos, web pages
+    │   └── my_project/
+    │       ├── docs/
+    │       └── src/
+    ├── user/                   # User preferences, habits
+    │   └── memories/
+    └── agent/                  # Skills, instructions, task memories
+        ├── skills/
+        └── memories/
+    ```
+  </Step>
+  
+  <Step title="Tiered Context Loading">
+    L0/L1/L2 three-tier structure loaded on demand significantly reduces token consumption:
+    
+    - **L0 (Abstract)**: ~100 tokens - Quick relevance check
+    - **L1 (Overview)**: ~2k tokens - Understand structure and key points
+    - **L2 (Detail)**: Unlimited - Full content loaded when needed
+  </Step>
+  
+  <Step title="Directory Recursive Retrieval">
+    Combines directory positioning with semantic search for recursive and precise context acquisition. This "lock high-score directory first, then refine content exploration" strategy improves both accuracy and completeness.
+  </Step>
+  
+  <Step title="Visualized Retrieval Trajectory">
+    Complete preservation of directory browsing and file positioning for each retrieval allows clear observation of problem sources and guides retrieval logic optimization.
+  </Step>
+  
+  <Step title="Automatic Session Management">
+    Built-in memory self-iteration loop automatically analyzes task execution and user feedback, updating User and Agent memory directories to enable continuous learning.
+  </Step>
+</Steps>
+
+## Core Features
+
+### File System Management Paradigm
+
+OpenViking organizes all context as a virtual file system, enabling agents to manipulate information through standard filesystem commands:
+
+```python
+import openviking as ov
+
+client = ov.OpenViking(path="./data")
+client.initialize()
+
+# Unix-like filesystem operations
+client.ls("viking://resources/")         # List directory
+client.read("viking://resources/doc")    # Read content
+client.mkdir("viking://agent/skills/")   # Create directory
+client.find("user authentication")       # Semantic search
+```
+
+### Context Types
+
+OpenViking manages three types of context:
+
+| Type | Purpose | Lifecycle |
+|------|---------|----------|
+| **Resource** | Knowledge and rules (docs, code, FAQ) | Long-term, relatively static |
+| **Memory** | Agent's cognition (user preferences, learned experiences) | Long-term, dynamically updated |
+| **Skill** | Callable capabilities (tools, MCP) | Long-term, static |
+
+### Hierarchical Context Architecture
+
+Every resource is automatically processed into three layers:
+
+```
+viking://resources/my_project/
+├── .abstract.md               # L0: One-sentence summary
+├── .overview.md               # L1: Core information
+├── docs/
+│   ├── .abstract.md          # Each directory has L0/L1
+│   ├── .overview.md
+│   └── api.md                # L2: Full original content
+└── src/
+```
+
+This tiered approach enables:
+- **Fast retrieval** using L0 abstracts
+- **Informed decisions** using L1 overviews
+- **Deep analysis** using L2 details only when needed
+
+<Note>
+OpenViking's hierarchical architecture can reduce token consumption by **83-96%** compared to traditional RAG systems while improving task completion rates by **15-49%** (based on LoCoMo10 benchmark testing).
+</Note>
+
+## OpenViking vs Traditional RAG
+
+| Feature | Traditional RAG | OpenViking |
+|---------|----------------|------------|
+| **Storage Model** | Flat vector slices | Hierarchical filesystem |
+| **Context Access** | Semantic search only | Deterministic paths + semantic search |
+| **Token Efficiency** | Load all retrieved chunks | Tiered loading (L0/L1/L2) |
+| **Retrieval Strategy** | Single-pass vector search | Directory recursive retrieval |
+| **Observability** | Black box | Full retrieval trajectory |
+| **Memory Evolution** | Static snapshots | Automatic self-iteration |
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Documentation Agent" icon="book">
+    Maintain comprehensive knowledge bases with automatic updates and hierarchical organization
+  </Card>
+  <Card title="Code Assistant" icon="code">
+    Navigate large codebases efficiently with filesystem-based context retrieval
+  </Card>
+  <Card title="Long-running Agents" icon="robot">
+    Accumulate experience and improve performance through automatic memory iteration
+  </Card>
+  <Card title="Multi-modal Applications" icon="images">
+    Handle text, images, and documents with unified VLM-powered processing
+  </Card>
+</CardGroup>
+
+## Performance
+
+Based on LoCoMo10 long-range dialogue benchmark (1,540 test cases):
+
+<Info>
+**Task Completion Rate Improvements:**
+- **+43-49%** vs original baseline
+- **+15-17%** vs traditional vector database (LanceDB)
+
+**Token Cost Reduction:**
+- **83-96%** reduction in input token consumption
+</Info>
+
+Test configuration: OpenViking v0.1.18, seed-2.0-code model
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get OpenViking running in 5 minutes
+  </Card>
+  <Card title="Server Deployment" icon="server" href="/server-deployment">
+    Deploy OpenViking as a production service
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore the complete API documentation
+  </Card>
+  <Card title="GitHub Repository" icon="github" href="https://github.com/volcengine/OpenViking">
+    View source code and contribute
+  </Card>
+</CardGroup>
