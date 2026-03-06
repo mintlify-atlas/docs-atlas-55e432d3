@@ -1,0 +1,172 @@
+{
+  "projectType": "data-platform",
+  "projectName": "OpenViking",
+  "projectDescription": "An open-source context database designed for AI Agents with filesystem-based management, hierarchical context loading, and semantic retrieval.",
+  "theme": "sequoia",
+  "primaryColor": "#5d56fc",
+  "lightColor": "#bd6cfc",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "server-deployment"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/context-types",
+              "concepts/context-layers",
+              "concepts/viking-uri",
+              "concepts/storage",
+              "concepts/extraction",
+              "concepts/retrieval",
+              "concepts/session"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/configuration",
+              "guides/deployment",
+              "guides/authentication",
+              "guides/monitoring",
+              "guides/python-sdk",
+              "guides/cli-usage"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "integrations/openclaw",
+              "integrations/opencode",
+              "integrations/claude-desktop",
+              "integrations/mcp"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": [
+              "api/resources/add-resource",
+              "api/resources/add-skill",
+              "api/resources/wait-processed"
+            ]
+          },
+          {
+            "group": "Filesystem",
+            "pages": [
+              "api/filesystem/ls",
+              "api/filesystem/mkdir",
+              "api/filesystem/read",
+              "api/filesystem/abstract",
+              "api/filesystem/overview",
+              "api/filesystem/tree",
+              "api/filesystem/rm",
+              "api/filesystem/mv",
+              "api/filesystem/grep",
+              "api/filesystem/glob"
+            ]
+          },
+          {
+            "group": "Search & Retrieval",
+            "pages": [
+              "api/retrieval/search",
+              "api/retrieval/find"
+            ]
+          },
+          {
+            "group": "Sessions",
+            "pages": [
+              "api/sessions/create-session",
+              "api/sessions/list-sessions",
+              "api/sessions/add-message",
+              "api/sessions/get-session",
+              "api/sessions/commit-session",
+              "api/sessions/delete-session"
+            ]
+          },
+          {
+            "group": "Skills",
+            "pages": [
+              "api/skills/list-skills",
+              "api/skills/call-skill"
+            ]
+          },
+          {
+            "group": "System",
+            "pages": [
+              "api/system/status",
+              "api/system/metrics"
+            ]
+          },
+          {
+            "group": "Admin",
+            "pages": [
+              "api/admin/users",
+              "api/admin/api-keys"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Filesystem-based context management with viking:// URIs",
+    "Hierarchical context loading (L0/L1/L2 layers)",
+    "Directory recursive retrieval with intent analysis",
+    "Automatic session and memory management",
+    "Unified management of Memory, Resources, and Skills",
+    "HTTP API server with multi-tenant support",
+    "Python SDK and Rust CLI"
+  ],
+  "publicApiSurface": [
+    "OpenViking.add_resource()",
+    "OpenViking.add_skill()",
+    "OpenViking.find()",
+    "OpenViking.search()",
+    "OpenViking.ls()",
+    "OpenViking.read()",
+    "OpenViking.abstract()",
+    "OpenViking.overview()",
+    "OpenViking.mkdir()",
+    "OpenViking.rm()",
+    "OpenViking.mv()",
+    "OpenViking.tree()",
+    "OpenViking.grep()",
+    "OpenViking.glob()",
+    "OpenViking.session()",
+    "OpenViking.sessions()",
+    "OpenViking.commit()",
+    "Session.add()",
+    "Session.commit()",
+    "ov add-resource",
+    "ov find",
+    "ov ls",
+    "ov tree",
+    "ov grep",
+    "ov chat",
+    "HTTP API: POST /api/v1/resources/add",
+    "HTTP API: POST /api/v1/search/find",
+    "HTTP API: POST /api/v1/filesystem/ls",
+    "HTTP API: POST /api/v1/sessions/create"
+  ]
+}
