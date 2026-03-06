@@ -1,0 +1,179 @@
+---
+title: "stat"
+description: "Get resource metadata and statistics"
+---
+
+## Overview
+
+The `stat()` method retrieves detailed metadata about a resource, including size, mode, timestamps, and whether it's a directory.
+
+<Note>
+  This method is useful for checking resource existence and getting file attributes without reading content.
+</Note>
+
+## Method Signature
+
+<CodeGroup>
+
+```python Python SDK
+def stat(uri: str) -> Dict[str, Any]
+```
+
+```bash HTTP API
+GET /api/v1/fs/stat
+```
+
+```bash CLI
+ov stat <uri>
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  The Viking URI of the resource to inspect
+</ParamField>
+
+## Response
+
+<ResponseField name="name" type="string">
+  Resource name (filename or directory name)
+</ResponseField>
+
+<ResponseField name="size" type="integer">
+  Size in bytes (0 for directories)
+</ResponseField>
+
+<ResponseField name="mode" type="integer">
+  File mode/permissions (Unix-style)
+</ResponseField>
+
+<ResponseField name="isDir" type="boolean">
+  Whether this is a directory
+</ResponseField>
+
+<ResponseField name="uri" type="string">
+  Full Viking URI of the resource
+</ResponseField>
+
+<ResponseField name="mtime" type="number" optional>
+  Last modification timestamp
+</ResponseField>
+
+<ResponseField name="ctime" type="number" optional>
+  Creation timestamp
+</ResponseField>
+
+## Examples
+
+### Check if Resource Exists
+
+<CodeGroup>
+
+```python Python SDK
+from openviking import OpenViking
+
+client = OpenViking(path="./data")
+
+# Get resource metadata
+info = client.stat("viking://resources/docs/")
+
+print(f"Name: {info['name']}")
+print(f"Is directory: {info['isDir']}")
+print(f"Size: {info['size']} bytes")
+```
+
+```bash HTTP API
+curl -X GET "http://localhost:1933/api/v1/fs/stat?uri=viking://resources/docs/" \
+  -H "X-API-Key: your-key"
+```
+
+```bash CLI
+ov stat viking://resources/docs/
+```
+
+</CodeGroup>
+
+### Before Reading Content
+
+```python
+# Check resource before reading
+try:
+    info = client.stat("viking://resources/large-file.pdf")
+    
+    if info['size'] > 10_000_000:  # 10MB
+        print("File is large, consider using offset/limit")
+        content = client.read(info['uri'], limit=1000)
+    else:
+        content = client.read(info['uri'])
+        
+except Exception as e:
+    print(f"Resource not found: {e}")
+```
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": {
+    "name": "api.md",
+    "size": 15420,
+    "mode": 420,
+    "isDir": false,
+    "uri": "viking://resources/docs/api.md",
+    "mtime": 1709712000.0,
+    "ctime": 1709712000.0
+  },
+  "time": 0.002
+}
+```
+
+## Error Responses
+
+### Resource Not Found
+
+```json
+{
+  "status": "error",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Resource not found: viking://resources/nonexistent.md"
+  },
+  "time": 0.001
+}
+```
+
+## Use Cases
+
+1. **Existence Check** - Verify resource exists before operations
+2. **Size Inspection** - Check file size before reading
+3. **Directory Detection** - Determine if URI points to file or directory
+4. **Metadata Queries** - Get timestamps for change tracking
+
+## Best Practices
+
+<Tip>
+  Use `stat()` before expensive operations to validate resource existence and type.
+</Tip>
+
+```python
+# Good: Check before reading
+if client.stat(uri)['isDir']:
+    entries = client.ls(uri)
+else:
+    content = client.read(uri)
+    
+# Avoid: Reading without checking
+try:
+    content = client.read(uri)  # May fail if it's a directory
+except Exception:
+    pass
+```
+
+## Related Methods
+
+- [ls()](/api/filesystem/ls) - List directory contents
+- [read()](/api/filesystem/read) - Read file content
+- [tree()](/api/filesystem/tree) - Get directory tree structure

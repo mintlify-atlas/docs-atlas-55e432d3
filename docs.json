@@ -99,10 +99,14 @@
               "api/filesystem/abstract",
               "api/filesystem/overview",
               "api/filesystem/tree",
+              "api/filesystem/stat",
               "api/filesystem/rm",
               "api/filesystem/mv",
               "api/filesystem/grep",
-              "api/filesystem/glob"
+              "api/filesystem/glob",
+              "api/filesystem/relations",
+              "api/filesystem/link",
+              "api/filesystem/unlink"
             ]
           },
           {

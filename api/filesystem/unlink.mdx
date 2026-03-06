@@ -1,0 +1,168 @@
+---
+title: "unlink"
+description: "Remove relations between resources"
+---
+
+## Overview
+
+The `unlink()` method removes a directional relation between two resources. This is useful for cleaning up outdated connections or correcting mistakes.
+
+<Warning>
+  Unlinking only removes the specified direction. If you created bidirectional links, you must unlink both directions separately.
+</Warning>
+
+## Method Signature
+
+<CodeGroup>
+
+```python Python SDK
+def unlink(from_uri: str, uri: str) -> None
+```
+
+```bash HTTP API
+POST /api/v1/relations/unlink
+```
+
+```bash CLI
+ov unlink <from_uri> <to_uri>
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="from_uri" type="string" required>
+  Source URI of the relation to remove
+</ParamField>
+
+<ParamField path="uri" type="string" required>
+  Target URI of the relation to remove
+</ParamField>
+
+## Examples
+
+### Remove Single Relation
+
+<CodeGroup>
+
+```python Python SDK
+from openviking import OpenViking
+
+client = OpenViking(path="./data")
+
+# Remove a relation
+client.unlink(
+    from_uri="viking://resources/code/auth.py",
+    uri="viking://resources/docs/old-auth.md"
+)
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/relations/unlink \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "from_uri": "viking://resources/code/auth.py",
+    "to_uri": "viking://resources/docs/old-auth.md"
+  }'
+```
+
+```bash CLI
+ov unlink viking://resources/code/auth.py \
+          viking://resources/docs/old-auth.md
+```
+
+</CodeGroup>
+
+### Clean Up Outdated Relations
+
+```python
+# Get all relations
+relations = client.relations("viking://resources/code/main.py")
+
+# Remove outdated ones
+for rel in relations:
+    if "deprecated" in rel['to_uri']:
+        client.unlink(
+            from_uri=rel['from_uri'],
+            uri=rel['to_uri']
+        )
+        print(f"Removed: {rel['to_uri']}")
+```
+
+### Remove All Relations for a Resource
+
+```python
+# Before deleting a resource, clean up its relations
+uri = "viking://resources/temp/example.md"
+
+# Remove all outgoing relations
+relations = client.relations(uri)
+for rel in relations:
+    client.unlink(from_uri=uri, uri=rel['to_uri'])
+
+# Now safe to delete
+client.rm(uri)
+```
+
+## Response
+
+```json
+{
+  "status": "ok",
+  "time": 0.002
+}
+```
+
+## Error Responses
+
+### Relation Not Found
+
+If the relation doesn't exist, the operation succeeds silently (idempotent):
+
+```json
+{
+  "status": "ok",
+  "time": 0.001
+}
+```
+
+## Use Cases
+
+1. **Cleanup** - Remove outdated or incorrect relations
+2. **Refactoring** - Update relations when resources move or change
+3. **Maintenance** - Clean up relations before deleting resources
+4. **Corrections** - Fix accidentally created relations
+
+## Best Practices
+
+<Tip>
+  Always query relations with `relations()` before mass unlinking to avoid removing unexpected links.
+</Tip>
+
+```python
+# Good: Verify before removing
+relations = client.relations(uri)
+print(f"Found {len(relations)} relations")
+
+# Review and selectively unlink
+for rel in relations:
+    if should_remove(rel):
+        client.unlink(uri, rel['to_uri'])
+
+# Avoid: Blind removal without checking
+# client.unlink(uri, some_uri)  # What if this removes something important?
+```
+
+## Notes
+
+- Unlink is **idempotent**: removing a non-existent relation succeeds
+- Unlink only affects **one direction**: A → B unlink doesn't affect B → A
+- Unlink does **not delete resources**: only removes the relation
+- Resources can still be found via semantic search after unlinking
+
+## Related Methods
+
+- [link()](/api/filesystem/link) - Create relations between resources
+- [relations()](/api/filesystem/relations) - Query existing relations
+- [rm()](/api/filesystem/rm) - Delete resources (does not auto-unlink)

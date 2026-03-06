@@ -1,0 +1,196 @@
+---
+title: "link"
+description: "Create relations between resources"
+---
+
+## Overview
+
+The `link()` method creates directional relations between resources, enabling you to build a knowledge graph of connected contexts. Relations help organize information and improve retrieval.
+
+<Note>
+  Relations are directional: linking A → B does not automatically create B → A.
+</Note>
+
+## Method Signature
+
+<CodeGroup>
+
+```python Python SDK
+def link(
+    from_uri: str,
+    uris: str | List[str],
+    reason: str = ""
+) -> None
+```
+
+```bash HTTP API
+POST /api/v1/relations/link
+```
+
+```bash CLI
+ov link <from_uri> <to_uri> [--reason <text>]
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="from_uri" type="string" required>
+  Source URI to link from
+</ParamField>
+
+<ParamField path="uris" type="string | List[string]" required>
+  Target URI(s) to link to. Can be a single string or list of URIs.
+</ParamField>
+
+<ParamField path="reason" type="string" default="">
+  Human-readable explanation of why resources are related
+</ParamField>
+
+## Examples
+
+### Link Single Resource
+
+<CodeGroup>
+
+```python Python SDK
+from openviking import OpenViking
+
+client = OpenViking(path="./data")
+
+# Link code file to its documentation
+client.link(
+    from_uri="viking://resources/code/auth.py",
+    uris="viking://resources/docs/authentication.md",
+    reason="Implementation documentation for auth module"
+)
+```
+
+```bash HTTP API
+curl -X POST http://localhost:1933/api/v1/relations/link \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-key" \
+  -d '{
+    "from_uri": "viking://resources/code/auth.py",
+    "to_uri": "viking://resources/docs/authentication.md",
+    "reason": "Implementation documentation"
+  }'
+```
+
+```bash CLI
+ov link viking://resources/code/auth.py \
+       viking://resources/docs/authentication.md \
+       --reason "Implementation documentation"
+```
+
+</CodeGroup>
+
+### Link Multiple Resources
+
+```python
+# Link documentation to multiple examples
+client.link(
+    from_uri="viking://resources/docs/quickstart.md",
+    uris=[
+        "viking://resources/examples/basic.py",
+        "viking://resources/examples/advanced.py",
+        "viking://resources/examples/async.py"
+    ],
+    reason="Example code referenced in quickstart"
+)
+```
+
+### Build Knowledge Graph
+
+```python
+# Create a network of related concepts
+concepts = {
+    "viking://agent/memories/concepts/rag": [
+        "viking://resources/papers/rag-survey.pdf",
+        "viking://resources/code/retriever.py"
+    ],
+    "viking://agent/memories/concepts/llm": [
+        "viking://resources/papers/transformers.pdf",
+        "viking://resources/docs/model-config.md"
+    ]
+}
+
+for concept_uri, related_uris in concepts.items():
+    client.link(
+        from_uri=concept_uri,
+        uris=related_uris,
+        reason="Related reading and implementation"
+    )
+```
+
+### Link Documentation Chain
+
+```python
+# Create navigation path through documentation
+docs = [
+    "viking://resources/docs/introduction.md",
+    "viking://resources/docs/quickstart.md",
+    "viking://resources/docs/advanced.md"
+]
+
+# Link each doc to the next
+for i in range(len(docs) - 1):
+    client.link(
+        from_uri=docs[i],
+        uris=docs[i + 1],
+        reason="Next in documentation sequence"
+    )
+```
+
+## Response
+
+```json
+{
+  "status": "ok",
+  "time": 0.003
+}
+```
+
+## Use Cases
+
+1. **Code-to-Docs Mapping** - Link implementation files to their documentation
+2. **Citation Networks** - Connect papers, articles, and references
+3. **Example Organization** - Link tutorials to their example code
+4. **Concept Graphs** - Build semantic networks between ideas
+5. **Navigation Hints** - Create "see also" or "related" connections
+
+## Best Practices
+
+<Tip>
+  Use descriptive reasons to make relations self-documenting and easier to understand.
+</Tip>
+
+```python
+# Good: Descriptive reason
+client.link(
+    from_uri="viking://resources/code/database.py",
+    uris="viking://resources/docs/data-model.md",
+    reason="Schema definitions and usage examples"
+)
+
+# Less useful: Generic reason
+client.link(
+    from_uri="viking://resources/code/database.py",
+    uris="viking://resources/docs/data-model.md",
+    reason="related"
+)
+```
+
+## Notes
+
+- Relations are **directional**: A → B ≠ B → A
+- Relations are **stored persistently** in the context database
+- Relations **improve retrieval**: related resources can be discovered during semantic search
+- Use `relations()` to query existing links
+- Use `unlink()` to remove relations
+
+## Related Methods
+
+- [relations()](/api/filesystem/relations) - Query relations for a URI
+- [unlink()](/api/filesystem/unlink) - Remove relations
+- [find()](/api/retrieval/find) - Semantic search uses relations for context

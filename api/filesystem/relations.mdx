@@ -1,0 +1,152 @@
+---
+title: "relations"
+description: "Get related contexts and linked resources"
+---
+
+## Overview
+
+The `relations()` method retrieves all resources linked to a given URI, enabling navigation through the context graph. Relations are directional connections created with `link()`.
+
+<Info>
+  Relations help organize related information, such as linking documentation to code, or connecting related concepts.
+</Info>
+
+## Method Signature
+
+<CodeGroup>
+
+```python Python SDK
+def relations(uri: str) -> List[Dict[str, Any]]
+```
+
+```bash HTTP API
+GET /api/v1/relations
+```
+
+```bash CLI
+ov relations <uri>
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="uri" type="string" required>
+  The Viking URI to query for relations
+</ParamField>
+
+## Response
+
+Returns a list of relation objects:
+
+<ResponseField name="from_uri" type="string">
+  Source URI (the queried resource)
+</ResponseField>
+
+<ResponseField name="to_uri" type="string">
+  Target URI (the linked resource)
+</ResponseField>
+
+<ResponseField name="reason" type="string">
+  Explanation of why resources are related
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Timestamp when relation was created
+</ResponseField>
+
+## Examples
+
+### List All Relations
+
+<CodeGroup>
+
+```python Python SDK
+from openviking import OpenViking
+
+client = OpenViking(path="./data")
+
+# Get all relations for a resource
+relations = client.relations("viking://resources/docs/api.md")
+
+for rel in relations:
+    print(f"Linked to: {rel['to_uri']}")
+    print(f"Reason: {rel['reason']}")
+```
+
+```bash HTTP API
+curl -X GET "http://localhost:1933/api/v1/relations?uri=viking://resources/docs/api.md" \
+  -H "X-API-Key: your-key"
+```
+
+```bash CLI
+ov relations viking://resources/docs/api.md
+```
+
+</CodeGroup>
+
+### Navigate Related Content
+
+```python
+# Find and read related documentation
+doc_uri = "viking://resources/project/auth.py"
+relations = client.relations(doc_uri)
+
+# Read related docs
+for rel in relations:
+    if "docs" in rel['to_uri']:
+        content = client.read(rel['to_uri'])
+        print(f"Related doc: {rel['to_uri']}")
+        print(f"Content: {content[:200]}...")
+```
+
+### Create and Query Relations
+
+```python
+# Link code to documentation
+client.link(
+    from_uri="viking://resources/code/auth.py",
+    uris="viking://resources/docs/authentication.md",
+    reason="Implementation documentation"
+)
+
+# Query relations
+relations = client.relations("viking://resources/code/auth.py")
+print(f"Found {len(relations)} related resources")
+```
+
+## Response Example
+
+```json
+{
+  "status": "ok",
+  "result": [
+    {
+      "from_uri": "viking://resources/docs/api.md",
+      "to_uri": "viking://resources/examples/api_usage.py",
+      "reason": "Code example for API documentation",
+      "created_at": 1709712000.0
+    },
+    {
+      "from_uri": "viking://resources/docs/api.md",
+      "to_uri": "viking://resources/docs/quickstart.md",
+      "reason": "Related getting started guide",
+      "created_at": 1709712100.0
+    }
+  ],
+  "time": 0.005
+}
+```
+
+## Use Cases
+
+1. **Documentation Navigation** - Link code to docs, examples to tutorials
+2. **Knowledge Graphs** - Build semantic connections between concepts
+3. **Related Content Discovery** - Surface relevant resources during retrieval
+4. **Citation Tracking** - Track references between documents
+
+## Related Methods
+
+- [link()](/api/filesystem/link) - Create relations between resources
+- [unlink()](/api/filesystem/unlink) - Remove relations
+- [find()](/api/retrieval/find) - Semantic search can use relations for context
